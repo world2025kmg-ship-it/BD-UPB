@@ -1,0 +1,844 @@
+openapi: 3.0.3
+info:
+  title: API Concours Génie UPB
+  version: 2.0.0
+  description: |
+    API FastAPI HTTP/JSON de gestion des étudiants, des demandes de création
+    et de correction, des inscriptions au concours Génie UPB et du pointage.
+    L'administrateur échange un secret serveur contre un jeton de session Bearer
+    signé, valable huit heures.
+    Les réponses métier sont en JSON UTF-8. Les routes acceptent les requêtes
+    CORS preflight OPTIONS.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Serveur local FastAPI. Remplacer par l'URL de l'environnement cible.
+tags:
+  - name: Étudiants
+  - name: Concours
+  - name: Administration
+  - name: Pointage
+
+paths:
+  /v1/models:
+    get:
+      tags: [Administration]
+      summary: Lister les modèles disponibles
+      description: Aucun modèle IA n'est configuré ; la liste est vide.
+      responses:
+        '200':
+          description: Catalogue de modèles compatible avec le format OpenAI.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object, data]
+                properties:
+                  object:
+                    type: string
+                    enum: [list]
+                  data:
+                    type: array
+                    maxItems: 0
+                    items:
+                      type: object
+
+  /api/admin/auth/login:
+    post:
+      tags: [Administration]
+      summary: Ouvrir une session administrateur
+      description: Échange le secret UPB_ADMIN_TOKEN contre un jeton de session temporaire.
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Secret administrateur configuré côté serveur.
+      responses:
+        '200':
+          description: Session créée. La réponse n'est pas mise en cache.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, access_token, token_type, expires_in]
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    enum: [bearer]
+                  expires_in:
+                    type: integer
+                    example: 28800
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+  /api/admin/auth/verify:
+    post:
+      tags: [Administration]
+      summary: Vérifier la session administrateur
+      description: Valide un jeton de session signé et non expiré.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Jeton valide.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+
+  /api/students/verify:
+    post:
+      tags: [Étudiants]
+      summary: Rechercher un étudiant par matricule
+      description: |
+        Retourne les informations du dossier, y compris les coordonnées et le
+        champ allergies_affection. Cette route n'exige actuellement pas de jeton.
+        Ne l'exposer qu'en connaissance des implications relatives aux données
+        personnelles et de santé.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [matricule]
+              properties:
+                matricule:
+                  type: string
+                  maxLength: 40
+                  example: KOUA1703980001
+      responses:
+        '200':
+          description: Dossier étudiant retrouvé.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message, data]
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/StudentRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+
+  /api/admin/students:
+    get:
+      tags: [Administration, Étudiants]
+      summary: Lister et rechercher les étudiants
+      description: |
+        Retourne une page de résultats et des statistiques globales. La liste
+        contient également des coordonnées et allergies/affections.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Numéro de page (minimum 1).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Résultats par page (de 1 à 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: q
+          in: query
+          description: Recherche partielle par matricule, nom, prénoms ou filière.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page d'étudiants et statistiques.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/StudentRecord'
+                        - type: object
+                          properties:
+                            id:
+                              type: integer
+                            numero_candidat:
+                              type: string
+                              nullable: true
+                            statut:
+                              type: string
+                              nullable: true
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+                  total_pages:
+                    type: integer
+                  stats:
+                    type: object
+                    description: Statistiques globales, indépendantes de la recherche et de la pagination.
+                    properties:
+                      total:
+                        type: integer
+                      inscrits:
+                        type: integer
+                      telephones:
+                        type: integer
+                      emails:
+                        type: integer
+                      filieres:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LabelCount'
+                      niveaux:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LabelCount'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+
+  /api/admin/students/{student_id}:
+    patch:
+      tags: [Administration, Étudiants]
+      summary: Modifier les coordonnées d'un étudiant
+      description: |
+        Modifie un ou plusieurs champs de la fiche étudiant. Une date de naissance valide
+        entraîne le recalcul du matricule. Une chaîne vide efface les champs
+        texte facultatifs.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nom:
+                  type: string
+                  maxLength: 150
+                prenoms:
+                  type: string
+                  maxLength: 150
+                filiere:
+                  type: string
+                  maxLength: 150
+                niveau:
+                  type: string
+                  maxLength: 150
+                telephone:
+                  type: string
+                  maxLength: 40
+                  example: '0701020304'
+                email:
+                  type: string
+                  format: email
+                  example: prenom.nom@exemple.ci
+                sexe:
+                  type: string
+                  enum: [M, F]
+                date_naissance:
+                  type: string
+                  format: date
+                  example: '1998-03-17'
+                allergies_affection:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '200':
+          description: Fiche mise à jour.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          matricule:
+                            type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Le matricule recalculé existe déjà.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Valeur ou date invalide.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/student-registration-requests:
+    post:
+      tags: [Étudiants]
+      summary: Soumettre un dossier étudiant à créer
+      description: |
+        Le matricule est généré à partir du nom, des prénoms et de la date de
+        naissance. Le dossier reste en attente et n'est ajouté à la base qu'après
+        validation par un administrateur.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nom, prenoms, date_naissance, filiere, niveau]
+              properties:
+                nom:
+                  type: string
+                  maxLength: 150
+                prenoms:
+                  type: string
+                  maxLength: 150
+                date_naissance:
+                  type: string
+                  format: date
+                filiere:
+                  type: string
+                  maxLength: 150
+                niveau:
+                  type: string
+                  maxLength: 150
+                  example: Master
+                telephone:
+                  type: string
+                  maxLength: 40
+                email:
+                  type: string
+                  format: email
+                sexe:
+                  type: string
+                  enum: [M, F]
+                allergies_affection:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '201':
+          description: Demande enregistrée en attente de validation.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  message:
+                    type: string
+                  matricule:
+                    type: string
+        '409':
+          description: Dossier existant ou demande déjà en attente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Données invalides.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/student-change-requests:
+    post:
+      tags: [Étudiants]
+      summary: Soumettre une demande de correction
+      description: |
+        La demande est mise en attente de validation administrative. Envoyer au
+        moins un champ à corriger. Les champs texte facultatifs vides peuvent
+        servir à effacer une valeur. Les dates acceptées sont AAAA-MM-JJ,
+        JJ/MM/AAAA ou JJ-MM-AAAA.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [matricule]
+              properties:
+                matricule:
+                  type: string
+                nom:
+                  type: string
+                  maxLength: 150
+                prenoms:
+                  type: string
+                  maxLength: 150
+                date_naissance:
+                  type: string
+                  example: '17/03/1998'
+                filiere:
+                  type: string
+                  maxLength: 150
+                niveau:
+                  type: string
+                  maxLength: 150
+                telephone:
+                  type: string
+                  maxLength: 40
+                email:
+                  type: string
+                  format: email
+                sexe:
+                  type: string
+                  enum: [M, F, '']
+                allergies_affection:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '201':
+          $ref: '#/components/responses/Success'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Une demande est déjà en attente pour ce dossier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Aucune modification proposée, valeur invalide ou identique aux données actuelles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/admin/student-requests:
+    get:
+      tags: [Administration]
+      summary: Lister les demandes en attente
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Demandes de création ou de correction à examiner.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        etudiant_id:
+                          type: integer
+                        modifications:
+                          type: object
+                          additionalProperties: true
+                        created_at:
+                          type: string
+                          format: date-time
+                        matricule:
+                          type: string
+                        nom:
+                          type: string
+                        prenoms:
+                          type: string
+                        date_naissance:
+                          type: string
+                          format: date
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Administration]
+      summary: Approuver ou refuser une demande
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, action]
+              properties:
+                id:
+                  type: integer
+                  minimum: 1
+                action:
+                  type: string
+                  enum: [approve, reject]
+                request_type:
+                  type: string
+                  enum: [modification, inscription]
+                  default: modification
+      responses:
+        '200':
+          description: Demande traitée.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      matricule:
+                        type: string
+                        description: Présent lorsque la demande est approuvée.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Contenu de demande invalide ou impossible à appliquer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/admin/students/import:
+    post:
+      tags: [Administration, Étudiants]
+      summary: Importer des étudiants depuis un CSV
+      description: |
+        Envoi multipart/form-data, fichier CSV de 5 Mo maximum et 5 000 lignes
+        maximum. Les colonnes obligatoires sont nom, prenoms, date_naissance,
+        filiere et niveau. Les colonnes facultatives sont telephone, email,
+        sexe et allergies_affection. L'import est transactionnel : si une ligne
+        comporte une erreur, aucune ligne n'est importée.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [fichier]
+              properties:
+                fichier:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Import terminé.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      imported:
+                        type: integer
+                      matricules:
+                        type: array
+                        items:
+                          type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: CSV invalide; aucune ligne n'a été importée.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - type: object
+                    properties:
+                      errors:
+                        type: array
+                        items:
+                          type: string
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/admin/attendance:
+    get:
+      tags: [Administration, Pointage]
+      summary: Consulter les présences d'une date
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          description: Date recherchée au format AAAA-MM-JJ (date du jour par défaut).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Présences et statistiques du jour.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  date:
+                    type: string
+                    format: date
+                  jour:
+                    type: string
+                    nullable: true
+                  stats:
+                    type: object
+                    properties:
+                      total_presents:
+                        type: integer
+                      total_inscrits:
+                        type: integer
+                      taux_presence:
+                        type: string
+                        example: 85.5 %
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Administration, Pointage]
+      summary: Enregistrer une présence
+      description: Un seul pointage par étudiant et par date est accepté.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [matricule]
+              properties:
+                matricule:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                  description: Date du pointage (date du jour par défaut).
+                jour_libelle:
+                  type: string
+                  nullable: true
+                  example: Jour 1
+      responses:
+        '201':
+          description: Présence enregistrée.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Étudiant déjà pointé à cette date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Jeton de session signé, valable huit heures.
+  schemas:
+    SuccessResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [success]
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [error]
+        message:
+          type: string
+    StudentRecord:
+      type: object
+      properties:
+        matricule:
+          type: string
+        nom:
+          type: string
+        prenoms:
+          type: string
+        date_naissance:
+          type: string
+          format: date
+        telephone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        sexe:
+          type: string
+          nullable: true
+        allergies_affection:
+          type: string
+          nullable: true
+        filiere:
+          type: string
+          nullable: true
+        niveau:
+          type: string
+          nullable: true
+    LabelCount:
+      type: object
+      properties:
+        libelle:
+          type: string
+        total:
+          type: integer
+  responses:
+    Success:
+      description: Opération réussie.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SuccessResponse'
+    BadRequest:
+      description: Requête invalide ou données manquantes.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Jeton administrateur absent ou invalide.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AdminNotConfigured:
+      description: Jeton administrateur non configuré côté serveur.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ressource ou matricule introuvable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Erreur interne ou erreur de base de données.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    MethodNotAllowed:
+      description: Méthode HTTP non autorisée.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
