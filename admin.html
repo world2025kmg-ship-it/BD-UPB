@@ -487,8 +487,8 @@
             <div class="sheet-head">
                 <div class="sheet-title">
                     <p class="eyebrow">Validation</p>
-                    <h2 id="demandes-title">Demandes de correction</h2>
-                    <p class="sub">Les changements proposés par les étudiants ne sont appliqués qu’après approbation.</p>
+                    <h2 id="demandes-title">Demandes à valider</h2>
+                    <p class="sub">Les créations de dossiers et les changements proposés ne sont appliqués qu’après approbation.</p>
                 </div>
             </div>
             <div class="section-tools">
@@ -693,6 +693,7 @@
         let pdfLib = null;
         let adminToken = '';
         let dashboardBooted = false;
+        const ADMIN_SESSION_KEY = 'upbAdminSession';
 
         GFX.mountBot('#bot-slot');
 
@@ -702,7 +703,14 @@
         function adminFetch(url, options = {}) {
             const headers = new Headers(options.headers || {});
             headers.set('Authorization', 'Bearer ' + adminToken);
-            return fetch(url, { ...options, headers });
+            return fetch(url, { ...options, headers }).then(response => {
+                if (response.status === 401 && adminToken) {
+                    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+                    adminToken = '';
+                    location.reload();
+                }
+                return response;
+            });
         }
 
         function normaliserRecherche(value) {
@@ -794,7 +802,7 @@
                 const q = $('search').value.trim();
                 if (q) qs.set('q', q);
 
-                const res = await adminFetch('get_etudiants.php?' + qs.toString());
+                const res = await adminFetch('api/admin/students?' + qs.toString());
                 const result = await res.json();
 
                 if (res.ok && result.status === 'success') {
@@ -824,7 +832,7 @@
                 console.error(err);
                 $('table-body').innerHTML = `<tr><td colspan="9" class="empty-state">
                     <b>Impossible de charger la liste</b>
-                    <span>Vérifiez que le serveur PHP et la base de données répondent.</span>
+                    <span>Vérifiez que l'API et la base de données répondent.</span>
                     <button class="btn-retry" type="button" onclick="chargerEtudiants()">Réessayer</button>
                 </td></tr>`;
                 $('countChip').textContent = '—';
@@ -1164,14 +1172,16 @@
             btn.classList.add('busy');
             btn.textContent = 'Enregistrement…';
 
-            const update = { id: id, telephone: valeur, email: adresse, sexe: genre };
-            if (naissance) update.date_naissance = naissance;
-
             try {
-                const res = await adminFetch('update_etudiant.php', {
-                    method: 'POST',
+                const res = await adminFetch(`api/admin/students/${id}`, {
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(update)
+                    body: JSON.stringify({
+                        telephone: valeur,
+                        email: adresse,
+                        sexe: genre,
+                        ...(naissance ? { date_naissance: naissance } : {})
+                    })
                 });
                 const data = await res.json().catch(() => ({}));
 
@@ -1237,7 +1247,7 @@
             do {
                 const qs = new URLSearchParams({ page: p, per_page: 100 });
                 if (q) qs.set('q', q);
-                const res = await adminFetch('get_etudiants.php?' + qs.toString());
+                const res = await adminFetch('api/admin/students?' + qs.toString());
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const json = await res.json();
                 if (json.status !== 'success') throw new Error(json.message || 'Réponse invalide');
@@ -1749,7 +1759,7 @@
             scroll.style.display = '';
 
             try {
-                const res = await adminFetch(`pointage.php?date=${encodeURIComponent(date)}`);
+                const res = await adminFetch(`api/admin/attendance?date=${encodeURIComponent(date)}`);
                 const data = await res.json();
 
                 if (!res.ok || data.status !== 'success') {
@@ -1808,7 +1818,7 @@
         $('btnExportPointageExcel').onclick = () => withBusy($('btnExportPointageExcel'), 'Export…', async () => {
             const date = $('datePointage').value || pointageDate;
             try {
-                const res = await adminFetch(`pointage.php?date=${encodeURIComponent(date)}`);
+                const res = await adminFetch(`api/admin/attendance?date=${encodeURIComponent(date)}`);
                 const data = await res.json();
                 if (!res.ok || !data.data || !data.data.length) {
                     toast('Aucune donnée de pointage à exporter', 'warn');
@@ -1830,7 +1840,7 @@
         $('btnExportPointagePdf').onclick = () => withBusy($('btnExportPointagePdf'), 'PDF…', async () => {
             const date = $('datePointage').value || pointageDate;
             try {
-                const res = await adminFetch(`pointage.php?date=${encodeURIComponent(date)}`);
+                const res = await adminFetch(`api/admin/attendance?date=${encodeURIComponent(date)}`);
                 const data = await res.json();
                 if (!res.ok || !data.data || !data.data.length) {
                     toast('Aucune donnée de pointage à exporter', 'warn');
@@ -1924,7 +1934,7 @@
         }
 
         async function authentifierAdmin(token) {
-            const response = await fetch('admin_auth_check.php', {
+            const response = await fetch('api/admin/auth/verify', {
                 method: 'POST',
                 headers: { Authorization: 'Bearer ' + token }
             });
@@ -1934,7 +1944,7 @@
             }
 
             adminToken = token;
-            sessionStorage.setItem('upbAdminToken', token);
+            sessionStorage.setItem(ADMIN_SESSION_KEY, token);
             $('admin-login').hidden = true;
             $('admin-auth-error').hidden = true;
             document.body.classList.add('admin-authenticated');
@@ -1944,6 +1954,18 @@
             }
         }
 
+        async function connecterAdmin(secret) {
+            const response = await fetch('api/admin/auth/login', {
+                method: 'POST',
+                headers: { Authorization: 'Bearer ' + secret }
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success' || !data.access_token) {
+                throw new Error(data.message || 'Authentification refusée.');
+            }
+            await authentifierAdmin(data.access_token);
+        }
+
         $('admin-login-form').addEventListener('submit', async event => {
             event.preventDefault();
             const button = $('admin-login-button');
@@ -1951,7 +1973,9 @@
             button.disabled = true;
             error.hidden = true;
             try {
-                await authentifierAdmin($('admin-token').value.trim());
+                const secret = $('admin-token').value.trim();
+                $('admin-token').value = '';
+                await connecterAdmin(secret);
             } catch (exception) {
                 error.textContent = exception.message;
                 error.hidden = false;
@@ -1961,7 +1985,7 @@
         });
 
         $('admin-logout').addEventListener('click', () => {
-            sessionStorage.removeItem('upbAdminToken');
+            sessionStorage.removeItem(ADMIN_SESSION_KEY);
             location.reload();
         });
 
@@ -1990,7 +2014,7 @@
             button.textContent = 'Import en cours…';
             result.textContent = '';
             try {
-                const response = await adminFetch('import_etudiants.php', { method: 'POST', body: form });
+                const response = await adminFetch('api/admin/students/import', { method: 'POST', body: form });
                 const data = await response.json();
                 if (!response.ok) {
                     const details = Array.isArray(data.errors) ? data.errors.join(' ') : '';
@@ -2013,7 +2037,7 @@
             const list = $('requests-list');
             list.innerHTML = '<p>Chargement des demandes…</p>';
             try {
-                const response = await adminFetch('admin_modifications.php');
+                const response = await adminFetch('api/admin/student-requests');
                 const data = await response.json();
                 if (!response.ok || data.status !== 'success') {
                     throw new Error(data.message || 'Impossible de charger les demandes.');
@@ -2032,13 +2056,14 @@
                     const changes = Object.entries(request.modifications || {}).map(([key, value]) =>
                         `<li><b>${esc(labels[key] || key)} :</b> ${esc(value === null ? 'Non renseigné' : String(value))}</li>`
                     ).join('');
+                    const isRegistration = request.request_type === 'inscription';
                     return `<article class="request-item">
-                        <h3>${esc(request.nom)} ${esc(request.prenoms)} · ${esc(request.matricule)}</h3>
+                        <h3>${isRegistration ? 'Création de dossier' : 'Correction'} : ${esc(request.nom)} ${esc(request.prenoms)} · ${esc(request.matricule)}</h3>
                         <p>Demande reçue : ${esc(request.created_at || '')}</p>
                         <ul>${changes}</ul>
                         <div class="request-actions">
-                            <button class="admin-action" type="button" onclick="traiterDemande(${Number(request.id)}, 'approve')">Approuver</button>
-                            <button class="admin-action reject" type="button" onclick="traiterDemande(${Number(request.id)}, 'reject')">Refuser</button>
+                            <button class="admin-action" type="button" onclick="traiterDemande(${Number(request.id)}, 'approve', '${isRegistration ? 'inscription' : 'modification'}')">Approuver</button>
+                            <button class="admin-action reject" type="button" onclick="traiterDemande(${Number(request.id)}, 'reject', '${isRegistration ? 'inscription' : 'modification'}')">Refuser</button>
                         </div>
                     </article>`;
                 }).join('');
@@ -2047,14 +2072,14 @@
             }
         }
 
-        async function traiterDemande(id, action) {
+        async function traiterDemande(id, action, requestType = 'modification') {
             const label = action === 'approve' ? 'approuver' : 'refuser';
             if (!confirm(`Voulez-vous ${label} cette demande ?`)) return;
             try {
-                const response = await adminFetch('admin_modifications.php', {
+                const response = await adminFetch('api/admin/student-requests', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id, action })
+                    body: JSON.stringify({ id, action, request_type: requestType })
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message || 'Traitement impossible.');
@@ -2091,10 +2116,11 @@
             chargerDemandes();
         }
 
-        const savedAdminToken = sessionStorage.getItem('upbAdminToken') || '';
+        sessionStorage.removeItem('upbAdminToken');
+        const savedAdminToken = sessionStorage.getItem(ADMIN_SESSION_KEY) || '';
         if (savedAdminToken) {
             authentifierAdmin(savedAdminToken).catch(exception => {
-                sessionStorage.removeItem('upbAdminToken');
+                sessionStorage.removeItem(ADMIN_SESSION_KEY);
                 $('admin-auth-error').textContent = exception.message;
                 $('admin-auth-error').hidden = false;
                 $('admin-token').focus();

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Concours Génie UPB - Inscription</title>
+    <title>Portail étudiant - UPB</title>
     <link rel="stylesheet" href="genie.css">
 </head>
 
@@ -18,6 +18,7 @@
             <h1>Université Polytechnique de Bingerville (UPB)</h1>
             <p>INCUBATEUR</p>
         </div>
+        <a class="pill" href="admin.html">Espace administration</a>
     </header>
 
     <main class="stage">
@@ -25,8 +26,7 @@
 
         <section class="hero">
             <h2 class="sticker" data-t="GÉNIE UPB">GÉNIE UPB</h2>
-            <p class="edition">Édition 2026</p>
-            <p class="lead">Vérifiez vos informations et inscrivez-vous au concours Génie UPB.</p>
+            <p class="lead">Consultez votre dossier étudiant ou soumettez une demande de création ou de correction.</p>
             <div class="bubble" role="status" aria-live="polite"><span id="say"></span></div>
             <div id="bot-slot" style="--bs:clamp(190px,26vw,300px)"></div>
         </section>
@@ -37,7 +37,7 @@
                 <div class="steps">
                     <div class="step on" id="s1"><span class="dot">1</span>&nbsp;<span class="t">Vérifier</span></div>
                     <span class="bar" id="b1"><i></i></span>
-                    <div class="step" id="s2"><span class="dot">2</span>&nbsp;<span class="t">Candidat</span></div>
+                    <div class="step" id="s2"><span class="dot">2</span>&nbsp;<span class="t">Dossier</span></div>
                 </div>
 
                 <h2>Portail candidat</h2>
@@ -49,6 +49,54 @@
                 <button class="btn" id="btn-verif" onclick="verifierEtudiant()">Vérifier mes informations</button>
 
                 <div id="resultat-verification" class="hidden"></div>
+
+                <div id="section-nouveau-dossier" class="hidden">
+                    <p class="sub">Aucun dossier trouvé ? Remplissez le formulaire. Votre demande sera vérifiée par un administrateur avant la création du dossier.</p>
+                    <div class="profile-fields">
+                        <div>
+                            <label for="nouveau-nom">Nom</label>
+                            <input type="text" id="nouveau-nom" maxlength="150" autocomplete="family-name">
+                        </div>
+                        <div>
+                            <label for="nouveau-prenoms">Prénoms</label>
+                            <input type="text" id="nouveau-prenoms" maxlength="150" autocomplete="given-name">
+                        </div>
+                        <div>
+                            <label for="nouveau-filiere">Filière</label>
+                            <input type="text" id="nouveau-filiere" maxlength="150">
+                        </div>
+                        <div>
+                            <label for="nouveau-niveau">Niveau d'étude</label>
+                            <input type="text" id="nouveau-niveau" maxlength="150" placeholder="Ex. Licence, Master">
+                        </div>
+                        <div>
+                            <label for="nouveau-date-naissance">Date de naissance</label>
+                            <input type="date" id="nouveau-date-naissance" autocomplete="bday">
+                        </div>
+                        <div>
+                            <label for="nouveau-email">Adresse e-mail</label>
+                            <input type="email" id="nouveau-email" maxlength="255" autocomplete="email">
+                        </div>
+                        <div>
+                            <label for="nouveau-telephone">Téléphone</label>
+                            <input type="text" id="nouveau-telephone" maxlength="40" inputmode="tel" autocomplete="tel">
+                        </div>
+                        <div>
+                            <label for="nouveau-sexe">Sexe</label>
+                            <select id="nouveau-sexe">
+                                <option value="">Non précisé</option>
+                                <option value="M">Masculin</option>
+                                <option value="F">Féminin</option>
+                            </select>
+                        </div>
+                        <div class="full">
+                            <label for="nouveau-allergies">Allergies ou affection particulière</label>
+                            <textarea id="nouveau-allergies" maxlength="2000" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <button class="btn" id="btn-nouveau-dossier" onclick="soumettreNouveauDossier()">Envoyer ma demande de création</button>
+                    <div id="resultat-nouveau-dossier" class="hidden" aria-live="polite"></div>
+                </div>
 
                 <div id="section-inscription" class="hidden">
                     <p class="sub">Vérifiez votre dossier. Toute correction sera appliquée uniquement après validation par un administrateur.</p>
@@ -95,23 +143,18 @@
                     </div>
                     <button class="btn" id="btn-modifs" onclick="soumettreModifications()">Soumettre mes modifications pour validation</button>
                     <div id="resultat-modification" class="hidden"></div>
-                    <button class="btn alt" id="btn-insc" onclick="inscrireCandidat()">Confirmer mon inscription au
-                        concours</button>
                 </div>
-
-                <div id="resultat-inscription" class="hidden"></div>
             </section>
         </div>
     </main>
 
     <footer class="foot">&copy; 2026 - Université Polytechnique de Bingerville (UPB)</footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="genie-fx.js"></script>
     <script>
         let matriculeActuel = "";
         let sexeChoisi = "";
-        const { say, mood, busy, confetti, reveal, esc, jump, nod } = GFX;
+        const { say, mood, busy, esc, jump, nod } = GFX;
         const $ = id => document.getElementById(id);
 
         GFX.mountBot('#bot-slot');
@@ -127,12 +170,6 @@
                 o.classList.toggle('on', on);
                 o.setAttribute('aria-checked', on ? 'true' : 'false');
             });
-        }
-
-        function champValide(el, ok) {
-            if (ok) return true;
-            secouer(el);
-            return false;
         }
 
         function setStep(n) {
@@ -158,12 +195,12 @@
             matriculeActuel = input.value.trim();
             const resDiv = $('resultat-verification');
             const inscDiv = $('section-inscription');
-            const successDiv = $('resultat-inscription');
+            const newStudentDiv = $('section-nouveau-dossier');
             const btn = $('btn-verif');
 
             resDiv.classList.remove('hidden');
             inscDiv.classList.add('hidden');
-            successDiv.classList.add('hidden');
+            newStudentDiv.classList.add('hidden');
             setStep(1);
 
             if (!matriculeActuel) {
@@ -178,23 +215,27 @@
             busy(true); mood('think'); say("Je parcours la liste des étudiants...");
 
             try {
-                const response = await fetch('verifier.php', {
+                const response = await fetchWithTimeout('api/students/verify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ matricule: matriculeActuel })
                 });
-                const data = await response.json();
+                const data = await readApiResponse(response);
 
                 if (response.ok) {
                     afficherDossier(data);
                 } else {
-                    resDiv.innerHTML = `<div class="panel err">${esc(data.message)}</div>`;
+                    resDiv.innerHTML = `<div class="panel err">${esc(data.message || data.detail || 'La vérification a échoué.')}</div>`;
+                    if (response.status === 404) {
+                        newStudentDiv.classList.remove('hidden');
+                        $('resultat-nouveau-dossier').classList.add('hidden');
+                    }
                     secouer(input); mood('sad');
                     say(data.message + " Vérifiez votre matricule.");
                 }
             } catch (error) {
-                resDiv.innerHTML = `<div class="panel err">Erreur de connexion avec le serveur.</div>`;
-                mood('sad'); say("Je n'arrive pas à joindre le serveur. Vérifiez votre connexion et réessayez.");
+                resDiv.innerHTML = `<div class="panel err">${esc(error.message || 'Erreur de connexion avec le serveur.')}</div>`;
+                mood('sad'); say(error.message || "Je n'arrive pas à joindre le serveur. Vérifiez votre connexion et réessayez.");
             } finally {
                 busy(false); charge(btn, false);
             }
@@ -226,8 +267,60 @@
             $('btn-modifs').disabled = false;
             $('section-inscription').classList.remove('hidden');
             setStep(2); mood('wow'); jump();
-            say(`Bonjour ${(d.prenoms || '').split(' ')[0]} : vérifiez votre dossier, puis inscrivez-vous si vous le souhaitez.`);
+            say(`Bonjour ${(d.prenoms || '').split(' ')[0]} : consultez votre dossier et soumettez une correction si nécessaire.`);
             setTimeout(() => mood('happy'), 2500);
+        }
+
+        async function soumettreNouveauDossier() {
+            const button = $('btn-nouveau-dossier');
+            const result = $('resultat-nouveau-dossier');
+            const student = {
+                nom: $('nouveau-nom').value.trim(),
+                prenoms: $('nouveau-prenoms').value.trim(),
+                filiere: $('nouveau-filiere').value.trim(),
+                niveau: $('nouveau-niveau').value.trim(),
+                date_naissance: $('nouveau-date-naissance').value,
+                email: $('nouveau-email').value.trim(),
+                telephone: $('nouveau-telephone').value.trim(),
+                sexe: $('nouveau-sexe').value,
+                allergies_affection: $('nouveau-allergies').value.trim()
+            };
+            if (!student.nom || !student.prenoms || !student.filiere || !student.niveau || !student.date_naissance) {
+                result.classList.remove('hidden');
+                result.innerHTML = '<div class="panel err">Le nom, les prénoms, la filière, le niveau et la date de naissance sont obligatoires.</div>';
+                return;
+            }
+            if (student.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.email)) {
+                secouer($('nouveau-email'));
+                $('nouveau-email').focus();
+                return;
+            }
+
+            result.classList.remove('hidden');
+            result.textContent = '';
+            charge(button, true, 'Envoi en cours...');
+            try {
+                const response = await fetchWithTimeout('api/student-registration-requests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(student)
+                });
+                const data = await readApiResponse(response);
+                result.classList.remove('hidden');
+                const matricule = data.matricule
+                    ? `<p>Matricule proposé : <strong>${esc(data.matricule)}</strong>. Il sera utilisable après validation.</p>`
+                    : '';
+                result.innerHTML = `<div class="panel ${response.ok ? 'ok' : 'err'}">${esc(data.message || data.detail || 'Réponse du serveur invalide.')}${matricule}</div>`;
+                if (response.ok) {
+                    button.disabled = true;
+                    say("Votre demande est enregistrée et attend la validation d'un administrateur.");
+                }
+            } catch (error) {
+                result.classList.remove('hidden');
+                result.innerHTML = `<div class="panel err">${esc(error.message || 'Impossible de joindre le serveur.')}</div>`;
+            } finally {
+                if (!button.disabled) charge(button, false);
+            }
         }
 
         async function soumettreModifications() {
@@ -256,10 +349,12 @@
                 return;
             }
 
+            result.classList.remove('hidden');
+            result.textContent = '';
             charge(btn, true, 'Envoi en cours...');
             busy(true); mood('think');
             try {
-                const response = await fetch('demander_modification.php', {
+                const response = await fetchWithTimeout('api/student-change-requests', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -267,9 +362,9 @@
                         ...corrections
                     })
                 });
-                const data = await response.json();
+                const data = await readApiResponse(response);
                 result.classList.remove('hidden');
-                result.innerHTML = `<div class="panel ${response.ok ? 'ok' : 'err'}">${esc(data.message || 'Réponse du serveur invalide.')}</div>`;
+                result.innerHTML = `<div class="panel ${response.ok ? 'ok' : 'err'}">${esc(data.message || data.detail || 'Réponse du serveur invalide.')}</div>`;
                 if (response.ok) {
                     btn.disabled = true;
                     say("Votre demande est envoyée. Un administrateur doit la valider avant toute mise à jour.");
@@ -278,7 +373,7 @@
                 }
             } catch (error) {
                 result.classList.remove('hidden');
-                result.innerHTML = '<div class="panel err">Impossible de joindre le serveur.</div>';
+                result.innerHTML = `<div class="panel err">${esc(error.message || 'Impossible de joindre le serveur.')}</div>`;
                 mood('sad');
             } finally {
                 busy(false);
@@ -286,74 +381,26 @@
             }
         }
 
-        async function inscrireCandidat() {
-            const successDiv = $('resultat-inscription');
-            const btn = $('btn-insc');
-            const email = $('email').value.trim();
-
-            if (!champValide($('email'), /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-                mood('sad');
-                say("Il me faut une adresse e-mail valide pour vous envoyer votre convocation.");
-                $('email').focus();
-                return;
-            }
-            if (!champValide($('sexe-picker'), sexeChoisi !== '')) {
-                mood('sad');
-                say("Précisez votre sexe pour compléter votre dossier.");
-                return;
-            }
-
-            successDiv.classList.remove('hidden');
-            successDiv.innerHTML = '';
-            charge(btn, true, 'Inscription en cours...');
-            busy(true); mood('think'); say("Je vous enregistre et je génère votre numéro...");
-
+        async function fetchWithTimeout(url, options = {}) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 25000);
             try {
-                const response = await fetch('inscrire.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ matricule: matriculeActuel })
-                });
-                const data = await response.json();
-
-                if (response.ok || response.status === 201) {
-                    const candidatNum = String(data.data.numero_candidat || '');
-                    const matriculeQR = matriculeActuel;
-                    successDiv.innerHTML = `
-                        <div class="panel done">
-                            <p class="msg">${esc(data.message)}</p>
-                            <div class="num" id="num-cand">················</div>
-                            <div class="qr-wrap" id="qr-wrap" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin:14px 0">
-                                <div id="qr-code" style="background:#fff;padding:12px;border-radius:12px;box-shadow:0 10px 30px -12px rgba(14,42,134,.8)"></div>
-                                <p style="font-size:.8rem;color:#5b6a96;text-align:center">Scannez ce QR Code pour le pointage<br><strong>${esc(matriculeQR)}</strong></p>
-                            </div>
-                            <p style="font-size:.82rem;color:#5b6a96">Conservez bien ce numéro de candidat pour la suite du concours.</p>
-                        </div>`;
-                    $('section-inscription').classList.add('hidden');
-                    reveal($('num-cand'), candidatNum);
-                    setStep(4); mood('celebrate'); confetti();
-                    if (window.QRCode) {
-                        try {
-                            new QRCode(document.getElementById('qr-code'), {
-                                text: matriculeQR,
-                                width: 180,
-                                height: 180,
-                                colorDark: "#0e2a86",
-                                colorLight: "#ffffff",
-                                correctLevel: QRCode.CorrectLevel.M
-                            });
-                        } catch (e) { console.error(e); }
-                    }
-                    say("Bravo, vous êtes inscrit ! Notez bien votre numéro de candidat. À très vite au concours !");
-                } else {
-                    successDiv.innerHTML = `<div class="panel warn">${esc(data.message)}</div>`;
-                    mood('sad'); say(data.message);
-                }
+                return await fetch(url, { ...options, signal: controller.signal });
             } catch (error) {
-                successDiv.innerHTML = `<div class="panel err">Erreur lors de l'inscription.</div>`;
-                mood('sad'); say("L'inscription n'a pas abouti. Réessayez dans un instant.");
+                if (error.name === 'AbortError') {
+                    throw new Error("Le serveur met trop de temps à répondre. Vérifiez votre connexion puis réessayez.");
+                }
+                throw error;
             } finally {
-                busy(false); charge(btn, false);
+                clearTimeout(timeout);
+            }
+        }
+
+        async function readApiResponse(response) {
+            try {
+                return await response.json();
+            } catch (error) {
+                return { message: `Réponse invalide du serveur (HTTP ${response.status}).` };
             }
         }
 

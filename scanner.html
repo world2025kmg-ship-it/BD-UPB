@@ -127,17 +127,17 @@
         async function startScanner() {
             if (scanning) return;
             try {
-                const token = sessionStorage.getItem('upbAdminToken') || '';
+                const token = sessionStorage.getItem('upbAdminSession') || '';
                 if (!token) {
                     showResult('err', '-', 'Connectez-vous comme administrateur depuis le panneau Admin avant d’utiliser le scanner.');
                     return;
                 }
-                const auth = await fetch('admin_auth_check.php', {
+                const auth = await fetch('api/admin/auth/verify', {
                     method: 'POST',
                     headers: { Authorization: 'Bearer ' + token }
                 });
                 if (!auth.ok) {
-                    sessionStorage.removeItem('upbAdminToken');
+                    sessionStorage.removeItem('upbAdminSession');
                     showResult('err', '-', 'Session administrateur invalide. Retournez au panneau Admin pour vous reconnecter.');
                     return;
                 }
@@ -195,11 +195,11 @@
             if (scanning) { try { html5Qrcode.pause(); } catch(e) {} }
 
             try {
-                const res = await fetch('pointage.php', {
+                const res = await fetch('api/admin/attendance', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json; charset=UTF-8',
-                        Authorization: 'Bearer ' + (sessionStorage.getItem('upbAdminToken') || '')
+                        Authorization: 'Bearer ' + (sessionStorage.getItem('upbAdminSession') || '')
                     },
                     body: JSON.stringify({
                         matricule: matricule,

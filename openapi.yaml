@@ -1,15 +1,17 @@
 openapi: 3.0.3
 info:
   title: API Concours Génie UPB
-  version: 1.1.0
+  version: 2.0.0
   description: |
-    API HTTP/JSON de gestion des étudiants, des inscriptions au concours Génie UPB
-    et du pointage. Les routes d'administration utilisent un jeton Bearer.
+    API FastAPI HTTP/JSON de gestion des étudiants, des demandes de création
+    et de correction, des inscriptions au concours Génie UPB et du pointage.
+    L'administrateur échange un secret serveur contre un jeton de session Bearer
+    signé, valable huit heures.
     Les réponses métier sont en JSON UTF-8. Les routes acceptent les requêtes
     CORS preflight OPTIONS.
 servers:
-  - url: http://localhost/upb-api
-    description: Serveur local XAMPP. Remplacer par l'URL de l'environnement cible.
+  - url: http://127.0.0.1:8000
+    description: Serveur local FastAPI. Remplacer par l'URL de l'environnement cible.
 tags:
   - name: Étudiants
   - name: Concours
@@ -17,10 +19,75 @@ tags:
   - name: Pointage
 
 paths:
-  /admin_auth_check.php:
+  /v1/models:
+    get:
+      tags: [Administration]
+      summary: Lister les modèles disponibles
+      description: Aucun modèle IA n'est configuré ; la liste est vide.
+      responses:
+        '200':
+          description: Catalogue de modèles compatible avec le format OpenAI.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object, data]
+                properties:
+                  object:
+                    type: string
+                    enum: [list]
+                  data:
+                    type: array
+                    maxItems: 0
+                    items:
+                      type: object
+
+  /api/admin/auth/login:
     post:
       tags: [Administration]
-      summary: Vérifier le jeton administrateur
+      summary: Ouvrir une session administrateur
+      description: Échange le secret UPB_ADMIN_TOKEN contre un jeton de session temporaire.
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Secret administrateur configuré côté serveur.
+      responses:
+        '200':
+          description: Session créée. La réponse n'est pas mise en cache.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, access_token, token_type, expires_in]
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    enum: [bearer]
+                  expires_in:
+                    type: integer
+                    example: 28800
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+  /api/admin/auth/verify:
+    post:
+      tags: [Administration]
+      summary: Vérifier la session administrateur
+      description: Valide un jeton de session signé et non expiré.
       security:
         - bearerAuth: []
       responses:
@@ -37,7 +104,7 @@ paths:
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
 
-  /verifier.php:
+  /api/students/verify:
     post:
       tags: [Étudiants]
       summary: Rechercher un étudiant par matricule
@@ -83,68 +150,7 @@ paths:
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
 
-  /inscrire.php:
-    post:
-      tags: [Concours]
-      summary: Inscrire un étudiant au concours
-      description: Un matricule existant reçoit un numéro de candidat et le statut EN_ATTENTE.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [matricule]
-              properties:
-                matricule:
-                  type: string
-                  maxLength: 40
-                  example: KOUA1703980001
-      responses:
-        '201':
-          description: Inscription créée.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    enum: [success]
-                  message:
-                    type: string
-                  data:
-                    type: object
-                    properties:
-                      matricule:
-                        type: string
-                      numero_candidat:
-                        type: string
-                        example: GENIE-2026-ABCDE
-                      statut:
-                        type: string
-                        example: EN_ATTENTE
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Étudiant déjà inscrit.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ErrorResponse'
-                  - type: object
-                    properties:
-                      numero_candidat:
-                        type: string
-        '500':
-          $ref: '#/components/responses/ServerError'
-        '405':
-          $ref: '#/components/responses/MethodNotAllowed'
-
-  /get_etudiants.php:
+  /api/admin/students:
     get:
       tags: [Administration, Étudiants]
       summary: Lister et rechercher les étudiants
@@ -237,30 +243,45 @@ paths:
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
 
-  /update_etudiant.php:
-    post:
+  /api/admin/students/{student_id}:
+    patch:
       tags: [Administration, Étudiants]
       summary: Modifier les coordonnées d'un étudiant
       description: |
-        Modifie un ou plusieurs champs parmi telephone, email, sexe,
-        allergies_affection et date_naissance. Une date de naissance valide
+        Modifie un ou plusieurs champs de la fiche étudiant. Une date de naissance valide
         entraîne le recalcul du matricule. Une chaîne vide efface les champs
         texte facultatifs.
       security:
         - bearerAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [id]
               properties:
-                id:
-                  type: integer
-                  minimum: 1
+                nom:
+                  type: string
+                  maxLength: 150
+                prenoms:
+                  type: string
+                  maxLength: 150
+                filiere:
+                  type: string
+                  maxLength: 150
+                niveau:
+                  type: string
+                  maxLength: 150
                 telephone:
                   type: string
+                  maxLength: 40
                   example: '0701020304'
                 email:
                   type: string
@@ -314,39 +335,79 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /update_telephone.php:
+  /api/student-registration-requests:
     post:
-      tags: [Administration, Étudiants]
-      summary: Modifier uniquement le téléphone (compatibilité)
-      description: Endpoint historique. Préférer /update_etudiant.php.
-      security:
-        - bearerAuth: []
+      tags: [Étudiants]
+      summary: Soumettre un dossier étudiant à créer
+      description: |
+        Le matricule est généré à partir du nom, des prénoms et de la date de
+        naissance. Le dossier reste en attente et n'est ajouté à la base qu'après
+        validation par un administrateur.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [id, telephone]
+              required: [nom, prenoms, date_naissance, filiere, niveau]
               properties:
-                id:
-                  type: integer
-                  minimum: 1
+                nom:
+                  type: string
+                  maxLength: 150
+                prenoms:
+                  type: string
+                  maxLength: 150
+                date_naissance:
+                  type: string
+                  format: date
+                filiere:
+                  type: string
+                  maxLength: 150
+                niveau:
+                  type: string
+                  maxLength: 150
+                  example: Master
                 telephone:
                   type: string
+                  maxLength: 40
+                email:
+                  type: string
+                  format: email
+                sexe:
+                  type: string
+                  enum: [M, F]
+                allergies_affection:
+                  type: string
+                  maxLength: 2000
       responses:
-        '200':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '503':
-          $ref: '#/components/responses/AdminNotConfigured'
-        '500':
-          $ref: '#/components/responses/ServerError'
+        '201':
+          description: Demande enregistrée en attente de validation.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  message:
+                    type: string
+                  matricule:
+                    type: string
+        '409':
+          description: Dossier existant ou demande déjà en attente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Données invalides.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /demander_modification.php:
+  /api/student-change-requests:
     post:
       tags: [Étudiants]
       summary: Soumettre une demande de correction
@@ -414,7 +475,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /admin_modifications.php:
+  /api/admin/student-requests:
     get:
       tags: [Administration]
       summary: Lister les demandes en attente
@@ -422,7 +483,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Demandes de correction à examiner.
+          description: Demandes de création ou de correction à examiner.
           content:
             application/json:
               schema:
@@ -480,6 +541,10 @@ paths:
                 action:
                   type: string
                   enum: [approve, reject]
+                request_type:
+                  type: string
+                  enum: [modification, inscription]
+                  default: modification
       responses:
         '200':
           description: Demande traitée.
@@ -510,7 +575,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /import_etudiants.php:
+  /api/admin/students/import:
     post:
       tags: [Administration, Étudiants]
       summary: Importer des étudiants depuis un CSV
@@ -571,7 +636,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /pointage.php:
+  /api/admin/attendance:
     get:
       tags: [Administration, Pointage]
       summary: Consulter les présences d'une date
@@ -677,7 +742,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: Jeton statique configuré côté serveur dans UPB_ADMIN_TOKEN.
+      description: Jeton de session signé, valable huit heures.
   schemas:
     SuccessResponse:
       type: object
