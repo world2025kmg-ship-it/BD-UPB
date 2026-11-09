@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanner QR - Pointage Génie UPB</title>
+    <link rel="stylesheet" href="genie.css">
+    <style>
+        :root{--scan-area:min(90vw,420px)}
+        .scan-board{width:min(100%,560px);margin:0 auto;padding:12px 16px 60px}
+        .scan-header{display:flex;align-items:center;gap:12px;padding:14px 0;flex-wrap:wrap}
+        .scan-header .brand-mark{width:54px;border-radius:18px}
+        .scan-header .brand-mark::before{border-radius:23px}
+        .scan-header .brand-mark__image{padding:4px}
+        .scan-brand{display:flex;align-items:center;gap:10px}
+        .scan-header h1{font:800 1.25rem var(--disp);color:#fff;margin:0}
+        .scan-header p{color:#d3e3ff;font-size:.86rem;margin:0}
+        .back{color:#fff;text-decoration:none;font-weight:700;font-size:.85rem;padding:8px 14px;border:1px solid rgba(255,255,255,.4);border-radius:99px;transition:all .2s}
+        .back:hover{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+        .scan-card{background:var(--paper);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px -20px rgba(0,0,0,.65);margin-top:10px}
+        .scan-card::before{content:"";display:block;height:6px;background:linear-gradient(90deg,var(--royal),var(--gold),var(--royal),var(--gold));background-size:200% 100%;animation:flow 4s linear infinite}
+        .video-wrap{position:relative;width:var(--scan-area);aspect-ratio:3/4;margin:22px auto 0;background:#000;border-radius:16px;overflow:hidden;border:3px solid var(--gold);box-shadow:0 0 0 4px rgba(249,185,31,.15)}
+        #reader{width:100%;height:100%;object-fit:cover;display:block}
+        .scan-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.6)}
+        .scan-overlay .frame{width:78%;height:78%;border:2px solid rgba(255,255,255,.6);border-radius:16px;box-shadow:0 0 0 4px rgba(255,255,255,.12),inset 0 0 20px rgba(255,255,255,.1);animation:framePulse 2s ease-in-out infinite}
+        @keyframes framePulse{0%,100%{transform:scale(1);border-color:rgba(255,255,255,.6)}50%{transform:scale(1.04);border-color:#fff}}
+        .scan-overlay span{margin-top:14px;font:700 1rem var(--font);letter-spacing:.04em}
+        .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+        .btn-scan{border:0;border-radius:14px;padding:14px;font:800 1rem var(--font);color:var(--navy);cursor:pointer;background:linear-gradient(135deg,var(--gold2),var(--gold));box-shadow:0 12px 26px -10px rgba(214,150,0,.9);transition:transform .15s}
+        .btn-scan:active{transform:scale(.97)}
+        .btn-scan:disabled{opacity:.6;cursor:not-allowed}
+        .btn-flip{background:transparent;color:var(--royal);border:2px solid var(--royal);font:700 .9rem var(--font);border-radius:14px;padding:14px;cursor:pointer;transition:all .2s}
+        .btn-flip:hover{background:var(--royal);color:#fff}
+        .result{margin-top:18px;padding:16px;border-radius:14px;display:none;text-align:center;animation:pop .4s cubic-bezier(.2,1.2,.3,1)}
+        @keyframes pop{from{opacity:0;transform:translateY(12px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+        .result.ok{background:#e8faf3;border:1px solid #bfeedd;color:#0a5c43}
+        .result.err{background:#fff1f1;border:1px solid #f5c2c4;color:#9b1c20}
+        .result.warn{background:#fff6e5;border:1px solid #f6d79b;color:#8a5200}
+        .result .big{font:800 1.5rem var(--disp);display:block;margin-bottom:6px}
+        .result .small{font-size:.9rem;color:inherit;opacity:.9}
+        .mat-badge{display:inline-block;margin-top:10px;padding:6px 14px;border-radius:99px;background:#fff;color:var(--navy);font:700 .9rem ui-monospace,Consolas,monospace;letter-spacing:.05em}
+        .hint{color:var(--mut);font-size:.85rem;margin-top:10px;text-align:center}
+        .status-chip{display:inline-flex;align-items:center;gap:8px;font:700 .85rem var(--font);padding:6px 12px;border-radius:99px}
+        .chip-ok{background:#d9f7ec;color:#0a7a56}
+        .chip-err{background:#ffe3e4;color:#9b1c20}
+        .chip-warn{background:#fff6e5;color:#8a5200}
+        @media(max-width:480px){.scan-board{padding:8px 10px 40px}.controls{grid-template-columns:1fr}}
+    </style>
+</head>
+
+<body>
+
+    <div class="scan-board">
+        <div class="scan-header">
+            <a href="admin.html" class="back">← Admin</a>
+            <div class="scan-brand">
+                <a class="brand-mark" href="index.html" aria-label="Accueil UPB">
+                    <img class="brand-mark__image" src="logo-upb.png" alt="Logo de l’incubateur de l’UPB">
+                </a>
+                <div>
+                    <h1>Pointage QR</h1>
+                    <p>Génie UPB</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="scan-card">
+            <div class="video-wrap" id="videoWrap">
+                <video id="reader" playsinline></video>
+                <div class="scan-overlay">
+                    <div class="frame" aria-hidden="true"></div>
+                    <span>Positionnez le QR Code dans le cadre</span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn-scan" id="btnStart" onclick="startScanner()">Activer la caméra</button>
+                <button class="btn-flip" id="btnFlip" onclick="flipCamera()" disabled>Changer de caméra</button>
+            </div>
+
+            <div id="resultBox" class="result"></div>
+
+            <div class="hint">Flash le QR Code de l'étudiant. La présence est enregistrée instantanément.</div>
+
+            <div id="lastScan" style="margin-top:14px;padding:12px;border-radius:12px;background:#eef3ff;color:var(--navy);font-size:.88rem;display:none"></div>
+        </div>
+    </div>
+
+    <script src="genie-fx.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script>
+        const { say, mood, jump, confetti, esc } = GFX;
+        const $ = id => document.getElementById(id);
+
+        let html5Qrcode = null;
+        let scanning = false;
+        let currentDate = new Date().toISOString().slice(0,10);
+        let jourLibelle = "Jour " + new Date().getDate();
+
+        const resultBox = $('resultBox');
+        const lastScan = $('lastScan');
+        const btnStart = $('btnStart');
+        const btnFlip = $('btnFlip');
+
+        function showResult(type, matricule, message) {
+            resultBox.style.display = 'block';
+            resultBox.className = 'result ' + type;
+            const labels = { ok: '✓ Présence enregistrée', err: '✖ Erreur', warn: '⚠ Attention' };
+            resultBox.innerHTML = `<span class="big">${labels[type]}</span><span class="small">${esc(message)}</span><div class="mat-badge">${esc(matricule)}</div>`;
+            if (type === 'ok') { mood('celebrate'); jump(); confetti(); say("Présence enregistrée !"); }
+            else if (type === 'err') { mood('sad'); say("Erreur lors du pointage."); }
+            else { mood('think'); say("Attention : " + message); }
+        }
+
+        function hideResult() { resultBox.style.display = 'none'; }
+
+        function addHistory(matricule, statut, message) {
+            const chip = document.createElement('div');
+            chip.className = 'status-chip ' + (statut === 'ok' ? 'chip-ok' : statut === 'err' ? 'chip-err' : 'chip-warn');
+            chip.innerHTML = `<span>${esc(matricule)}</span><span style="font-size:.8rem;opacity:.8">${esc(message)}</span>`;
+            lastScan.style.display = 'block';
+            lastScan.innerHTML = '';
+            lastScan.appendChild(chip);
+        }
+
+        async function startScanner() {
+            if (scanning) return;
+            try {
+                const token = sessionStorage.getItem('upbAdminToken') || '';
+                if (!token) {
+                    showResult('err', '-', 'Connectez-vous comme administrateur depuis le panneau Admin avant d’utiliser le scanner.');
+                    return;
+                }
+                const auth = await fetch('/api/admin_auth_check', {
+                    method: 'POST',
+                    headers: { Authorization: 'Bearer ' + token }
+                });
+                if (!auth.ok) {
+                    sessionStorage.removeItem('upbAdminToken');
+                    showResult('err', '-', 'Session administrateur invalide. Retournez au panneau Admin pour vous reconnecter.');
+                    return;
+                }
+                btnStart.textContent = 'Démarrage…';
+                btnStart.disabled = true;
+                html5Qrcode = new Html5Qrcode("reader");
+                await html5Qrcode.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    (decodedText) => {
+                        const matricule = String(decodedText).trim();
+                        hideResult();
+                        processScan(matricule);
+                    },
+                    () => {}
+                );
+                scanning = true;
+                btnStart.textContent = 'Caméra active';
+                btnStart.disabled = true;
+                btnFlip.disabled = false;
+                say("Caméra activée. Scannez le QR Code de l'étudiant.");
+                mood('happy');
+            } catch (err) {
+                console.error(err);
+                btnStart.textContent = 'Activer la caméra';
+                btnStart.disabled = false;
+                showResult('err', '-', 'Impossible d\'accéder à la caméra. Vérifiez les permissions.');
+                mood('sad');
+            }
+        }
+
+        async function flipCamera() {
+            if (!html5Qrcode || !scanning) return;
+            try {
+                await html5Qrcode.switch();
+                say("Caméra changée.");
+            } catch (err) {
+                console.error(err);
+                showResult('err', '-', 'Impossible de changer de caméra.');
+            }
+        }
+
+        async function stopScanner() {
+            if (!html5Qrcode || !scanning) return;
+            await html5Qrcode.stop();
+            scanning = false;
+            btnStart.textContent = 'Réactiver la caméra';
+            btnStart.disabled = false;
+            btnFlip.disabled = true;
+            say("Caméra arrêtée.");
+        }
+
+        async function processScan(matricule) {
+            // Pause momentanée du scan pour éviter les doubles lectures
+            if (scanning) { try { html5Qrcode.pause(); } catch(e) {} }
+
+            try {
+                const res = await fetch('/api/pointage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        Authorization: 'Bearer ' + (sessionStorage.getItem('upbAdminToken') || '')
+                    },
+                    body: JSON.stringify({
+                        matricule: matricule,
+                        date: currentDate,
+                        jour_libelle: jourLibelle
+                    })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.status === 'success') {
+                    showResult('ok', matricule, data.message);
+                    addHistory(matricule, 'ok', 'Présent le ' + currentDate);
+                } else if (res.status === 409) {
+                    showResult('warn', matricule, data.message || 'Déjà pointé aujourd\'hui.');
+                    addHistory(matricule, 'warn', 'Déjà pointé');
+                } else {
+                    showResult('err', matricule, data.message || 'Échec du pointage.');
+                    addHistory(matricule, 'err', data.message || 'Inconnu');
+                }
+            } catch (err) {
+                showResult('err', '-', 'Erreur de connexion au serveur.');
+                addHistory('-', 'err', 'Serveur injoignable');
+            } finally {
+                // Reprise du scan après 2 secondes pour éviter le double scan immédiat
+                setTimeout(() => {
+                    if (scanning) {
+                        try { html5Qrcode.resume(); } catch(e) { startScanner(); }
+                    }
+                }, 2000);
+            }
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (html5Qrcode && scanning) { html5Qrcode.stop(); }
+        });
+
+    </script>
+</body>
+
+</html>
