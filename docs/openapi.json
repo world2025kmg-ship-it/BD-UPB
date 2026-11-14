@@ -1,0 +1,3914 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "API Concours Génie UPB",
+    "summary": "Vérification d'identité des étudiants, inscription au concours, administration et pointage.",
+    "description": "\nAPI JSON du concours **Génie UPB**.\n\n## Conventions\n* Corps JSON UTF-8 (`Content-Type: application/json`), sauf l'import CSV (`multipart/form-data`).\n* Toute réponse a la forme `{\"status\": \"success\" | \"error\", \"message\": \"...\"}`.\n* Dates : `AAAA-MM-JJ` (la saisie `JJ/MM/AAAA` et `JJ-MM-AAAA` est acceptée pour les dates de naissance).\n* Horodatages : `AAAA-MM-JJ HH:MM:SS`.\n* CORS ouvert à toutes les origines ; réponses `/api/*` non mises en cache.\n\n## Authentification\n* **Portail étudiant** (`/api/verifier`, `/api/demander_modification`,\n  `/api/demander_creation`) : aucun jeton.\n* **Administration et pointage** : connexion par **identifiant + mot de passe**\n  (`POST /api/admin_login`), qui renvoie un jeton de session à envoyer en\n  `Authorization: Bearer <jeton>` (bouton **Authorize** ci-dessus). `401` si le jeton\n  est absent, invalide ou expiré ; `503` si le serveur n'est pas configuré.\n* **Site officiel d'inscription au concours** : clé d'API partenaire en-tête `X-API-Key`\n  (`/api/partenaire/verifier`), qui vérifie l'étudiant et le marque inscrit.\n* Cette documentation est elle-même protégée (HTTP Basic).\n* Toutes les actions sont tracées dans le **journal d'activité** (tag « Journal »).\n\n## Intégrer l'API sur un site externe\nVoir le guide `docs/GUIDE_INTEGRATION.md` du dépôt.\n",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/admin_login": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Se connecter (identifiant + mot de passe)",
+        "description": "Renvoie un jeton de session à envoyer ensuite en `Authorization: Bearer <jeton>` sur toutes les routes d'administration. Après 5 échecs, l'accès est bloqué 15 minutes.",
+        "operationId": "admin_login_api_admin_login_post",
+        "requestBody": {
+          "description": "Identifiant et mot de passe de l'administrateur.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "identifiant": {
+                    "type": "string",
+                    "title": "Identifiant",
+                    "examples": [
+                      "admin"
+                    ]
+                  },
+                  "password": {
+                    "type": "string",
+                    "title": "Password",
+                    "description": "Mot de passe de l'administrateur."
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "identifiant",
+                  "password"
+                ],
+                "title": "LoginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de tentatives échouées.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/verifier": {
+      "post": {
+        "tags": [
+          "Portail étudiant"
+        ],
+        "summary": "Vérifier l'identité d'un étudiant par son matricule",
+        "description": "Retrouve le dossier d'un étudiant à partir de son matricule et renvoie son identité (nom, prénoms, date de naissance), ses coordonnées et sa filière. **Route publique, sans jeton.** Le serveur ne reçoit pas la date de naissance saisie par l'utilisateur : c'est à l'appelant de comparer, côté serveur, les informations renvoyées avec celles que l'utilisateur déclare. Voir le guide d'intégration (`docs/GUIDE_INTEGRATION.md`).",
+        "operationId": "verify_student_api_verifier_post",
+        "requestBody": {
+          "description": "Matricule à vérifier.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "matricule": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "title": "Matricule",
+                    "description": "Matricule de l'étudiant (insensible à la casse, espaces ignorés).",
+                    "examples": [
+                      "KOUA1703980001"
+                    ]
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "matricule"
+                ],
+                "title": "MatriculeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Étudiant trouvé.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demander_modification": {
+      "post": {
+        "tags": [
+          "Portail étudiant"
+        ],
+        "summary": "Proposer une correction de dossier",
+        "description": "Enregistre une demande de correction qui sera appliquée après validation par un administrateur. Seuls les champs réellement différents sont retenus. Une seule demande en attente par dossier.",
+        "operationId": "request_modification_api_demander_modification_post",
+        "requestBody": {
+          "description": "Matricule et champs à corriger.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "matricule": {
+                    "type": "string",
+                    "title": "Matricule",
+                    "examples": [
+                      "KOUA1703980001"
+                    ]
+                  },
+                  "nom": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 150
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Nom"
+                  },
+                  "prenoms": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 150
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Prenoms"
+                  },
+                  "date_naissance": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Date Naissance",
+                    "description": "`AAAA-MM-JJ`, `JJ/MM/AAAA` ou `JJ-MM-AAAA` ; pas de date future.",
+                    "examples": [
+                      "1998-03-17"
+                    ]
+                  },
+                  "filiere": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 150
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Filiere",
+                    "description": "Vide = effacer."
+                  },
+                  "niveau": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 150
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Niveau",
+                    "description": "Vide = effacer."
+                  },
+                  "telephone": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Telephone",
+                    "description": "Vide = effacer."
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Email",
+                    "description": "Vide = effacer.",
+                    "examples": [
+                      "nom@exemple.ci"
+                    ]
+                  },
+                  "sexe": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Sexe",
+                    "description": "`M` ou `F` ; vide = effacer."
+                  },
+                  "allergies_affection": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Allergies Affection"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "matricule"
+                ],
+                "title": "ModificationBody",
+                "description": "Au moins un champ à corriger en plus du matricule."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "description": "Demande transmise.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflit (déjà existant).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demander_creation": {
+      "post": {
+        "tags": [
+          "Portail étudiant"
+        ],
+        "summary": "Soumettre son dossier quand le matricule est inconnu",
+        "description": "Un candidat dont le matricule n'est pas en base renseigne ses informations. La demande est enregistrée **en attente** : le dossier n'est créé qu'après validation par un administrateur, avec le matricule calculé à partir du nom, du prénom et de la date de naissance. Nom, prénoms et date de naissance sont obligatoires.",
+        "operationId": "request_creation_api_demander_creation_post",
+        "requestBody": {
+          "description": "Matricule saisi et informations du candidat.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "matricule": {
+                    "type": "string",
+                    "title": "Matricule",
+                    "description": "Matricule saisi par le candidat.",
+                    "examples": [
+                      "KOUA1703980001"
+                    ]
+                  },
+                  "nom": {
+                    "type": "string",
+                    "maxLength": 150,
+                    "title": "Nom",
+                    "examples": [
+                      "Kouadio"
+                    ]
+                  },
+                  "prenoms": {
+                    "type": "string",
+                    "maxLength": 150,
+                    "title": "Prenoms",
+                    "examples": [
+                      "Alain"
+                    ]
+                  },
+                  "date_naissance": {
+                    "type": "string",
+                    "title": "Date Naissance",
+                    "description": "`AAAA-MM-JJ`, `JJ/MM/AAAA` ou `JJ-MM-AAAA`.",
+                    "examples": [
+                      "1998-03-17"
+                    ]
+                  },
+                  "filiere": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 150
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Filiere"
+                  },
+                  "niveau": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 150
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Niveau"
+                  },
+                  "telephone": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Telephone"
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Email",
+                    "examples": [
+                      "nom@exemple.ci"
+                    ]
+                  },
+                  "sexe": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Sexe",
+                    "description": "`M` ou `F`."
+                  },
+                  "allergies_affection": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Allergies Affection"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "matricule",
+                  "nom",
+                  "prenoms",
+                  "date_naissance"
+                ],
+                "title": "CreationBody",
+                "description": "Dossier d'un candidat dont le matricule est inconnu."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "description": "Demande transmise.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflit (déjà existant).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/update_etudiant": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Modifier directement une fiche étudiant",
+        "description": "Modifie téléphone, e-mail, sexe, allergies/affections et/ou date de naissance (qui recalcule le matricule). Une chaîne vide efface le champ.",
+        "operationId": "update_student_api_update_etudiant_post",
+        "requestBody": {
+          "description": "Identifiant et champs à modifier.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1.0,
+                    "title": "Id",
+                    "description": "Identifiant interne (champ `id` de `get_etudiants`)."
+                  },
+                  "telephone": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Telephone"
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Email"
+                  },
+                  "sexe": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Sexe",
+                    "description": "`M` ou `F`."
+                  },
+                  "allergies_affection": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Allergies Affection"
+                  },
+                  "date_naissance": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Date Naissance",
+                    "description": "Recalcule le matricule ; `409` si le nouveau existe déjà."
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "title": "UpdateStudentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Fiche mise à jour ; `data.matricule` si le matricule a changé.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflit (déjà existant).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/update_telephone": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Modifier le téléphone (ancienne route)",
+        "description": "Conservée pour compatibilité ; préférer `/api/update_etudiant`.",
+        "operationId": "update_telephone_api_update_telephone_post",
+        "requestBody": {
+          "description": "Identifiant et nouveau téléphone.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1.0,
+                    "title": "Id"
+                  },
+                  "telephone": {
+                    "type": "string",
+                    "title": "Telephone"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id",
+                  "telephone"
+                ],
+                "title": "UpdatePhoneBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/partenaire/verifier": {
+      "post": {
+        "tags": [
+          "Partenaires"
+        ],
+        "summary": "Vérifier un étudiant et le marquer inscrit au concours",
+        "description": "Réservé au site officiel d'inscription (en-tête `X-API-Key`). Retrouve l'étudiant par son matricule, **le marque inscrit au concours** s'il ne l'est pas encore, et renvoie son identité. L'appel est idempotent : répéter la requête ne crée pas de doublon et renvoie le numéro de candidat existant. Si `numero_candidat` est fourni et que l'étudiant n'est pas encore inscrit, ce numéro est enregistré ; sinon un numéro `GENIE-2026-XXXXX` est généré.",
+        "operationId": "partner_verify_api_partenaire_verifier_post",
+        "requestBody": {
+          "description": "Matricule et numéro de candidat facultatif.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "matricule": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "title": "Matricule",
+                    "examples": [
+                      "KOUA1703980001"
+                    ]
+                  },
+                  "numero_candidat": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Numero Candidat",
+                    "description": "Numéro de candidat attribué par le site d'inscription ; enregistré à la première inscription (un numéro est généré s'il est absent)."
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "matricule"
+                ],
+                "title": "PartnerVerifyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Étudiant vérifié et inscrit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerVerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PartnerApiKey": []
+          }
+        ]
+      }
+    },
+    "/api/admin_auth_check": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Vérifier le jeton administrateur",
+        "operationId": "check_admin_auth_api_admin_auth_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/get_etudiants": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Lister et rechercher les étudiants",
+        "description": "Recherche partielle (insensible à la casse) sur matricule, nom, prénoms et filière, triée par nom, avec statistiques globales.",
+        "operationId": "get_students_api_get_etudiants_get",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numéro de page (1 par défaut).",
+              "title": "Page"
+            },
+            "description": "Numéro de page (1 par défaut)."
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Taille de page (20 par défaut, 100 maximum).",
+              "title": "Per Page"
+            },
+            "description": "Taille de page (20 par défaut, 100 maximum)."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Recherche partielle.",
+              "default": "",
+              "title": "Q"
+            },
+            "description": "Recherche partielle."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin_modifications": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Lister les demandes de correction en attente",
+        "operationId": "list_modifications_api_admin_modifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModificationsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Approuver ou refuser une demande de correction",
+        "description": "`approve` applique les changements (et recalcule le matricule si le nom, les prénoms ou la date de naissance changent) ; `reject` la refuse.",
+        "operationId": "process_modification_api_admin_modifications_post",
+        "requestBody": {
+          "description": "Demande et décision.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1.0,
+                    "title": "Id",
+                    "description": "Identifiant de la demande."
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject"
+                    ],
+                    "title": "Action"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id",
+                  "action"
+                ],
+                "title": "ProcessModificationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModificationDecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/import_etudiants": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Importer des étudiants depuis un CSV",
+        "description": "Champ multipart `fichier` (.csv, UTF-8, 5 Mo et 5 000 lignes maximum, séparateur `,` ou `;`). Colonnes obligatoires : `nom`, `prenoms`, `date_naissance`, `filiere`, `niveau` ; facultatives : `telephone`, `email`, `sexe`, `allergies_affection`. Tout ou rien : une erreur annule l'import.",
+        "operationId": "import_students_api_import_etudiants_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_students_api_import_etudiants_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "description": "Étudiants importés.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fichier ou lignes invalides.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin_creations": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Lister les demandes d'ajout de dossier en attente",
+        "operationId": "list_creations_api_admin_creations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreationsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Approuver ou refuser une demande d'ajout de dossier",
+        "description": "`approve` crée l'étudiant avec le matricule calculé (nom, prénom, date de naissance) ; `reject` refuse la demande.",
+        "operationId": "process_creation_api_admin_creations_post",
+        "requestBody": {
+          "description": "Demande et décision.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1.0,
+                    "title": "Id",
+                    "description": "Identifiant de la demande."
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject"
+                    ],
+                    "title": "Action"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id",
+                  "action"
+                ],
+                "title": "ProcessModificationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreationDecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin_approve_all": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Approuver toutes les demandes en attente d'un coup",
+        "description": "Approuve toutes les demandes de correction et d'ajout de dossier en attente. Chaque demande est traitée indépendamment : une demande invalide (ex. conflit de matricule) est laissée en attente et listée dans `echecs`, sans bloquer les autres.",
+        "operationId": "approve_all_api_admin_approve_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApproveAllResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin_journal": {
+      "get": {
+        "tags": [
+          "Journal"
+        ],
+        "summary": "Consulter le journal d'activité",
+        "description": "Événements les plus récents en premier. Filtres combinables : recherche libre (acteur, action, cible, message, IP), catégorie, action, type d'acteur, statut et période.",
+        "operationId": "list_journal_api_admin_journal_get",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numéro de page.",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Numéro de page."
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Taille de page (200 maximum).",
+              "default": 50,
+              "title": "Per Page"
+            },
+            "description": "Taille de page (200 maximum)."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Recherche libre (acteur, action, cible, message, IP).",
+              "default": "",
+              "title": "Q"
+            },
+            "description": "Recherche libre (acteur, action, cible, message, IP)."
+          },
+          {
+            "name": "categorie",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Ex. `AUTH`, `ETUDIANT`, `DEMANDE`, `POINTAGE`…",
+              "default": "",
+              "title": "Categorie"
+            },
+            "description": "Ex. `AUTH`, `ETUDIANT`, `DEMANDE`, `POINTAGE`…"
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Code d'action exact, ex. `ADMIN_CONNEXION`.",
+              "default": "",
+              "title": "Action"
+            },
+            "description": "Code d'action exact, ex. `ADMIN_CONNEXION`."
+          },
+          {
+            "name": "acteur_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`ADMIN`, `PARTENAIRE`, `PUBLIC` ou `DOCUMENTATION`.",
+              "default": "",
+              "title": "Acteur Type"
+            },
+            "description": "`ADMIN`, `PARTENAIRE`, `PUBLIC` ou `DOCUMENTATION`."
+          },
+          {
+            "name": "statut",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`SUCCES` ou `ECHEC`.",
+              "default": "",
+              "title": "Statut"
+            },
+            "description": "`SUCCES` ou `ECHEC`."
+          },
+          {
+            "name": "date_debut",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`AAAA-MM-JJ` (inclus).",
+              "default": "",
+              "title": "Date Debut"
+            },
+            "description": "`AAAA-MM-JJ` (inclus)."
+          },
+          {
+            "name": "date_fin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`AAAA-MM-JJ` (inclus).",
+              "default": "",
+              "title": "Date Fin"
+            },
+            "description": "`AAAA-MM-JJ` (inclus)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin_journal/export": {
+      "get": {
+        "tags": [
+          "Journal"
+        ],
+        "summary": "Exporter le journal en CSV",
+        "description": "Mêmes filtres que la consultation ; 20 000 lignes au maximum. Fichier CSV UTF-8 (séparateur `;`). L'export est lui-même enregistré dans le journal.",
+        "operationId": "export_journal_api_admin_journal_export_get",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "categorie",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Categorie"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Action"
+            }
+          },
+          {
+            "name": "acteur_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Acteur Type"
+            }
+          },
+          {
+            "name": "statut",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Statut"
+            }
+          },
+          {
+            "name": "date_debut",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Date Debut"
+            }
+          },
+          {
+            "name": "date_fin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Date Fin"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fichier CSV.",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin_logout": {
+      "post": {
+        "tags": [
+          "Journal"
+        ],
+        "summary": "Se déconnecter (enregistre la déconnexion)",
+        "description": "Les sessions étant sans état, la déconnexion consiste à oublier le jeton côté navigateur ; cet appel permet de la tracer dans le journal.",
+        "operationId": "admin_logout_api_admin_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin_export": {
+      "post": {
+        "tags": [
+          "Journal"
+        ],
+        "summary": "Enregistrer un export réalisé dans le navigateur",
+        "description": "Les exports Excel/PDF de la liste des étudiants et du pointage sont générés dans le navigateur : l'interface signale chaque export pour qu'il soit tracé.",
+        "operationId": "log_export_api_admin_export_post",
+        "requestBody": {
+          "description": "Format et contenu exporté.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "excel",
+                      "pdf"
+                    ],
+                    "title": "Format"
+                  },
+                  "cible": {
+                    "type": "string",
+                    "enum": [
+                      "etudiants",
+                      "pointage"
+                    ],
+                    "title": "Cible"
+                  },
+                  "lignes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0.0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Lignes",
+                    "description": "Nombre de lignes exportées."
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "format",
+                  "cible"
+                ],
+                "title": "ExportLogBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/pointage": {
+      "get": {
+        "tags": [
+          "Pointage"
+        ],
+        "summary": "Rapport de présence d'une date",
+        "operationId": "get_attendance_api_pointage_get",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`AAAA-MM-JJ` ; aujourd'hui par défaut.",
+              "title": "Date"
+            },
+            "description": "`AAAA-MM-JJ` ; aujourd'hui par défaut."
+          },
+          {
+            "name": "jour",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Libellé du jour, renvoyé tel quel.",
+              "title": "Jour"
+            },
+            "description": "Libellé du jour, renvoyé tel quel."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Pointage"
+        ],
+        "summary": "Enregistrer une présence (scan QR code)",
+        "description": "Un étudiant ne peut être pointé qu'une fois par date (`409` sinon).",
+        "operationId": "record_attendance_api_pointage_post",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceRecordedResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "description": "Requête invalide (champ manquant, date mal formée…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflit (déjà existant).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "Matricule scanné, date et libellé du jour.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "matricule": {
+                    "examples": [
+                      "KOUA1703980001"
+                    ],
+                    "title": "Matricule",
+                    "type": "string"
+                  },
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "`AAAA-MM-JJ` ; aujourd'hui par défaut.",
+                    "examples": [
+                      "2026-06-10"
+                    ],
+                    "title": "Date"
+                  },
+                  "jour_libelle": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "examples": [
+                      "Jour 1"
+                    ],
+                    "title": "Jour Libelle"
+                  }
+                },
+                "required": [
+                  "matricule"
+                ],
+                "title": "AttendanceBody",
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdminStudent": {
+        "properties": {
+          "matricule": {
+            "type": "string",
+            "title": "Matricule",
+            "examples": [
+              "KOUA1703980001"
+            ]
+          },
+          "nom": {
+            "type": "string",
+            "title": "Nom",
+            "examples": [
+              "Kouadio"
+            ]
+          },
+          "prenoms": {
+            "type": "string",
+            "title": "Prenoms",
+            "examples": [
+              "Alain"
+            ]
+          },
+          "date_naissance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Naissance",
+            "description": "`AAAA-MM-JJ`",
+            "examples": [
+              "1998-03-17"
+            ]
+          },
+          "telephone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telephone"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "sexe": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "M",
+                  "F"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sexe"
+          },
+          "allergies_affection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allergies Affection"
+          },
+          "filiere": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filiere"
+          },
+          "niveau": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Niveau"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "numero_candidat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numero Candidat",
+            "description": "`null` si non inscrit."
+          },
+          "statut": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matricule",
+          "nom",
+          "prenoms",
+          "date_naissance",
+          "id"
+        ],
+        "title": "AdminStudent"
+      },
+      "ApproveAllResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "modifications": {
+            "$ref": "#/components/schemas/ApproveBatch",
+            "description": "Demandes de correction."
+          },
+          "creations": {
+            "$ref": "#/components/schemas/ApproveBatch",
+            "description": "Demandes d'ajout de dossier."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "modifications",
+          "creations"
+        ],
+        "title": "ApproveAllResponse"
+      },
+      "ApproveBatch": {
+        "properties": {
+          "approuvees": {
+            "type": "integer",
+            "title": "Approuvees"
+          },
+          "echecs": {
+            "items": {
+              "$ref": "#/components/schemas/ApproveFailure"
+            },
+            "type": "array",
+            "title": "Echecs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approuvees",
+          "echecs"
+        ],
+        "title": "ApproveBatch"
+      },
+      "ApproveFailure": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "examples": [
+              "Le matricule calculé existe déjà pour un autre étudiant."
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "message"
+        ],
+        "title": "ApproveFailure"
+      },
+      "AttendanceRecorded": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "etudiant_id": {
+            "type": "integer",
+            "title": "Etudiant Id"
+          },
+          "matricule": {
+            "type": "string",
+            "title": "Matricule"
+          },
+          "date_pointage": {
+            "type": "string",
+            "title": "Date Pointage"
+          },
+          "statut": {
+            "type": "string",
+            "const": "PRESENT",
+            "title": "Statut"
+          },
+          "heure_pointage": {
+            "type": "string",
+            "title": "Heure Pointage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "etudiant_id",
+          "matricule",
+          "date_pointage",
+          "statut",
+          "heure_pointage"
+        ],
+        "title": "AttendanceRecorded"
+      },
+      "AttendanceRecordedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttendanceRecorded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "data"
+        ],
+        "title": "AttendanceRecordedResponse"
+      },
+      "AttendanceReportResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "jour": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jour"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/AttendanceStats"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AttendanceRow"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "jour",
+          "stats",
+          "data"
+        ],
+        "title": "AttendanceReportResponse"
+      },
+      "AttendanceRow": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "etudiant_id": {
+            "type": "integer",
+            "title": "Etudiant Id"
+          },
+          "matricule": {
+            "type": "string",
+            "title": "Matricule"
+          },
+          "nom": {
+            "type": "string",
+            "title": "Nom"
+          },
+          "prenoms": {
+            "type": "string",
+            "title": "Prenoms"
+          },
+          "filiere": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filiere"
+          },
+          "niveau": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Niveau"
+          },
+          "numero_candidat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numero Candidat"
+          },
+          "jour_libelle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jour Libelle"
+          },
+          "heure_pointage": {
+            "type": "string",
+            "title": "Heure Pointage",
+            "examples": [
+              "2026-06-10 08:15:30"
+            ]
+          },
+          "statut": {
+            "type": "string",
+            "title": "Statut",
+            "examples": [
+              "PRESENT"
+            ]
+          },
+          "qr_code_valide": {
+            "type": "boolean",
+            "title": "Qr Code Valide"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "etudiant_id",
+          "matricule",
+          "nom",
+          "prenoms",
+          "filiere",
+          "niveau",
+          "numero_candidat",
+          "jour_libelle",
+          "heure_pointage",
+          "statut",
+          "qr_code_valide",
+          "created_at"
+        ],
+        "title": "AttendanceRow"
+      },
+      "AttendanceStats": {
+        "properties": {
+          "total_presents": {
+            "type": "integer",
+            "title": "Total Presents"
+          },
+          "total_inscrits": {
+            "type": "integer",
+            "title": "Total Inscrits"
+          },
+          "taux_presence": {
+            "type": "string",
+            "title": "Taux Presence",
+            "examples": [
+              "42.5 %"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_presents",
+          "total_inscrits",
+          "taux_presence"
+        ],
+        "title": "AttendanceStats"
+      },
+      "Body_import_students_api_import_etudiants_post": {
+        "properties": {
+          "fichier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fichier"
+          }
+        },
+        "type": "object",
+        "title": "Body_import_students_api_import_etudiants_post"
+      },
+      "CreationDecisionResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "matricule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricule",
+            "description": "Matricule du dossier créé (après approbation)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "CreationDecisionResponse"
+      },
+      "CreationsListResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PendingCreation"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "CreationsListResponse"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "error",
+            "title": "Status",
+            "default": "error"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "examples": [
+              "Matricule requis."
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ImportErrorResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "error",
+            "title": "Status",
+            "default": "error"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "examples": [
+              "Matricule requis."
+            ]
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors",
+            "description": "50 erreurs au maximum, une par ligne fautive.",
+            "examples": [
+              [
+                "Ligne 3 : adresse e-mail invalide."
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ImportErrorResponse"
+      },
+      "ImportResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "imported": {
+            "type": "integer",
+            "title": "Imported"
+          },
+          "matricules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matricules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "imported",
+          "matricules"
+        ],
+        "title": "ImportResponse"
+      },
+      "JournalEntry": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "examples": [
+              "2026-11-08 09:30:12"
+            ]
+          },
+          "acteur_type": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "PARTENAIRE",
+              "PUBLIC",
+              "DOCUMENTATION",
+              "SYSTEME"
+            ],
+            "title": "Acteur Type"
+          },
+          "acteur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acteur",
+            "description": "Identifiant admin, nom du partenaire… (`null` si anonyme)."
+          },
+          "categorie": {
+            "type": "string",
+            "title": "Categorie",
+            "examples": [
+              "AUTH"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "examples": [
+              "ADMIN_CONNEXION"
+            ]
+          },
+          "statut": {
+            "type": "string",
+            "enum": [
+              "SUCCES",
+              "ECHEC"
+            ],
+            "title": "Statut"
+          },
+          "cible_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cible Type",
+            "examples": [
+              "matricule"
+            ]
+          },
+          "cible": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cible",
+            "examples": [
+              "KOUA1703980001"
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "Motif en cas d'échec."
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details",
+            "description": "Informations complémentaires (noms de champs, compteurs…)."
+          },
+          "code_http": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Http"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "methode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Methode"
+          },
+          "chemin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chemin"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "acteur_type",
+          "acteur",
+          "categorie",
+          "action",
+          "statut",
+          "cible_type",
+          "cible",
+          "message",
+          "details",
+          "code_http",
+          "ip",
+          "methode",
+          "chemin",
+          "user_agent"
+        ],
+        "title": "JournalEntry"
+      },
+      "JournalResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/JournalEntry"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Nombre d'événements correspondant aux filtres."
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/JournalStats"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "description": "Codes d'action connus (pour construire un filtre)."
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "total",
+          "page",
+          "per_page",
+          "total_pages",
+          "stats",
+          "actions",
+          "categories"
+        ],
+        "title": "JournalResponse"
+      },
+      "JournalStats": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Nombre total d'événements enregistrés."
+          },
+          "dernieres_24h": {
+            "type": "integer",
+            "title": "Dernieres 24H"
+          },
+          "echecs_24h": {
+            "type": "integer",
+            "title": "Echecs 24H"
+          },
+          "acces_refuses_24h": {
+            "type": "integer",
+            "title": "Acces Refuses 24H",
+            "description": "Connexions échouées et accès refusés des dernières 24 h."
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "dernieres_24h",
+          "echecs_24h",
+          "acces_refuses_24h"
+        ],
+        "title": "JournalStats"
+      },
+      "LabelCount": {
+        "properties": {
+          "libelle": {
+            "type": "string",
+            "title": "Libelle"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "libelle",
+          "total"
+        ],
+        "title": "LabelCount"
+      },
+      "LoginResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "Jeton de session : `Authorization: Bearer <token>`."
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "description": "Durée de validité en secondes.",
+            "examples": [
+              28800
+            ]
+          },
+          "identifiant": {
+            "type": "string",
+            "title": "Identifiant"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "token",
+          "expires_in",
+          "identifiant"
+        ],
+        "title": "LoginResponse"
+      },
+      "ModificationDecisionResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "matricule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricule",
+            "description": "Présent uniquement après approbation."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ModificationDecisionResponse"
+      },
+      "ModificationsListResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PendingModification"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ModificationsListResponse"
+      },
+      "PartnerRegistration": {
+        "properties": {
+          "numero_candidat": {
+            "type": "string",
+            "title": "Numero Candidat",
+            "examples": [
+              "GENIE-2026-A1B2C"
+            ]
+          },
+          "statut": {
+            "type": "string",
+            "title": "Statut",
+            "examples": [
+              "EN_ATTENTE"
+            ]
+          },
+          "deja_inscrit": {
+            "type": "boolean",
+            "title": "Deja Inscrit",
+            "description": "`true` si l'étudiant était déjà inscrit avant cet appel."
+          }
+        },
+        "type": "object",
+        "required": [
+          "numero_candidat",
+          "statut",
+          "deja_inscrit"
+        ],
+        "title": "PartnerRegistration"
+      },
+      "PartnerVerifyResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "data": {
+            "$ref": "#/components/schemas/StudentRecord"
+          },
+          "inscription": {
+            "$ref": "#/components/schemas/PartnerRegistration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "data",
+          "inscription"
+        ],
+        "title": "PartnerVerifyResponse"
+      },
+      "PendingCreation": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "matricule_saisi": {
+            "type": "string",
+            "title": "Matricule Saisi"
+          },
+          "donnees": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Donnees"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "examples": [
+              "2026-06-01 09:30:00"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "matricule_saisi",
+          "donnees",
+          "created_at"
+        ],
+        "title": "PendingCreation"
+      },
+      "PendingModification": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "etudiant_id": {
+            "type": "integer",
+            "title": "Etudiant Id"
+          },
+          "modifications": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Modifications",
+            "examples": [
+              {
+                "telephone": "0701020304"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "examples": [
+              "2026-06-01 09:30:00"
+            ]
+          },
+          "matricule": {
+            "type": "string",
+            "title": "Matricule"
+          },
+          "nom": {
+            "type": "string",
+            "title": "Nom"
+          },
+          "prenoms": {
+            "type": "string",
+            "title": "Prenoms"
+          },
+          "date_naissance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Naissance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "etudiant_id",
+          "modifications",
+          "created_at",
+          "matricule",
+          "nom",
+          "prenoms",
+          "date_naissance"
+        ],
+        "title": "PendingModification"
+      },
+      "StudentRecord": {
+        "properties": {
+          "matricule": {
+            "type": "string",
+            "title": "Matricule",
+            "examples": [
+              "KOUA1703980001"
+            ]
+          },
+          "nom": {
+            "type": "string",
+            "title": "Nom",
+            "examples": [
+              "Kouadio"
+            ]
+          },
+          "prenoms": {
+            "type": "string",
+            "title": "Prenoms",
+            "examples": [
+              "Alain"
+            ]
+          },
+          "date_naissance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Naissance",
+            "description": "`AAAA-MM-JJ`",
+            "examples": [
+              "1998-03-17"
+            ]
+          },
+          "telephone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telephone"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "sexe": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "M",
+                  "F"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sexe"
+          },
+          "allergies_affection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allergies Affection"
+          },
+          "filiere": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filiere"
+          },
+          "niveau": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Niveau"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matricule",
+          "nom",
+          "prenoms",
+          "date_naissance"
+        ],
+        "title": "StudentRecord"
+      },
+      "StudentStats": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "inscrits": {
+            "type": "integer",
+            "title": "Inscrits"
+          },
+          "telephones": {
+            "type": "integer",
+            "title": "Telephones"
+          },
+          "emails": {
+            "type": "integer",
+            "title": "Emails"
+          },
+          "filieres": {
+            "items": {
+              "$ref": "#/components/schemas/LabelCount"
+            },
+            "type": "array",
+            "title": "Filieres"
+          },
+          "niveaux": {
+            "items": {
+              "$ref": "#/components/schemas/LabelCount"
+            },
+            "type": "array",
+            "title": "Niveaux"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "inscrits",
+          "telephones",
+          "emails",
+          "filieres",
+          "niveaux"
+        ],
+        "title": "StudentStats"
+      },
+      "StudentsListResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AdminStudent"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Nombre de résultats pour la recherche en cours."
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/StudentStats",
+            "description": "Statistiques globales (indépendantes de la recherche)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "total",
+          "page",
+          "per_page",
+          "total_pages",
+          "stats"
+        ],
+        "title": "StudentsListResponse"
+      },
+      "SuccessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "SuccessResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerifyResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Vos informations ont été retrouvées."
+          },
+          "data": {
+            "$ref": "#/components/schemas/StudentRecord"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "VerifyResponse"
+      }
+    },
+    "securitySchemes": {
+      "AdminBearer": {
+        "type": "http",
+        "description": "Jeton de session administrateur, obtenu avec `POST /api/admin_login` (identifiant + mot de passe). Valable quelques heures.",
+        "scheme": "bearer"
+      },
+      "PartnerApiKey": {
+        "type": "apiKey",
+        "description": "Clé d'API remise à un site partenaire (ex. site officiel d'inscription au concours).",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Portail étudiant",
+      "description": "Routes publiques (sans jeton)."
+    },
+    {
+      "name": "Administration",
+      "description": "Routes réservées aux administrateurs (jeton Bearer)."
+    },
+    {
+      "name": "Journal",
+      "description": "Journal d'activité : traçabilité des actions (jeton Bearer)."
+    },
+    {
+      "name": "Partenaires",
+      "description": "Sites partenaires autorisés (clé d'API `X-API-Key`)."
+    },
+    {
+      "name": "Pointage",
+      "description": "Présences quotidiennes par QR code (jeton Bearer)."
+    }
+  ]
+}

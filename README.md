@@ -1,324 +1,186 @@
-# API Concours Génie UPB
+# Concours Génie UPB
 
-Cette API PHP permet de rechercher des étudiants, de les inscrire au concours,
-de proposer des corrections, de gérer les dossiers et d'enregistrer les
-présences. Le contrat lisible par les outils est [openapi.yaml](./openapi.yaml)
-(OpenAPI 3.0.3) ; importez-le dans Swagger UI, Postman ou Insomnia pour explorer
-les opérations et leurs schémas.
+Application web de gestion du concours Génie UPB : recherche et inscription des
+étudiants, demandes de correction de dossier, administration, import CSV et
+pointage des présences par QR code.
 
-## URL et formats
+- **Backend** : FastAPI (Python) — dossier [backend/](backend/)
+- **Frontend** : HTML / CSS / JavaScript — dossier [frontend/](frontend/)
+- **Base de données** : PostgreSQL hébergé sur [Neon](https://neon.tech)
 
-L'URL de base dépend du déploiement. Avec XAMPP en local, elle est généralement
-`http://localhost/upb-api`. En production, remplacez-la par l'URL HTTPS réelle
-et mettez à jour l'entrée `servers` dans `openapi.yaml`.
-
-- Les corps JSON sont envoyés avec `Content-Type: application/json`.
-- Les réponses JSON sont encodées en UTF-8.
-- L'import CSV utilise `multipart/form-data`.
-- Les routes acceptent les requêtes preflight CORS (`OPTIONS`). Le code actuel
-  autorise toutes les origines (`Access-Control-Allow-Origin: *`).
-- Les dates sont au format `AAAA-MM-JJ`, sauf les dates de demande de correction
-  qui acceptent aussi `JJ/MM/AAAA` et `JJ-MM-AAAA`.
-
-## Authentification administrateur
-
-Les routes d'administration exigent l'en-tête :
-
-```http
-Authorization: Bearer VOTRE_JETON_ADMIN
+```
+bd-incub/
+├── backend/
+│   ├── app/
+│   │   ├── main.py             # application FastAPI (+ service du frontend)
+│   │   ├── config.py           # variables d'environnement
+│   │   ├── db.py               # pool de connexions PostgreSQL
+│   │   ├── auth.py             # authentification Bearer admin
+│   │   ├── errors.py           # réponses JSON {status, message}
+│   │   ├── student_helpers.py  # matricules, dates, références
+│   │   └── routes/             # students.py · admin.py · attendance.py
+│   ├── migrations/             # schéma SQL (00 → 03)
+│   ├── scripts/migrate.py      # applique les migrations sur Neon
+│   ├── tests/
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/                   # index.html, admin.html, scanner.html, genie.css, genie-fx.js
+└── docs/RESTRUCTURATION.md     # journal détaillé de la restructuration
 ```
 
-`VOTRE_JETON_ADMIN` est un espace réservé : remplacez-le par la valeur exacte
-configurée sur le serveur. Le serveur lit le jeton depuis la variable
-d'environnement `UPB_ADMIN_TOKEN` ; il doit contenir au moins 10 caractères.
-Les requêtes d'administration reçoivent `401` si le jeton fourni est absent ou
-invalide, et `503` si le jeton n'est pas configuré sur le serveur.
-`POST /admin_auth_check.php` permet de vérifier la configuration.
-
-Générez un jeton aléatoire sur le serveur ou dans un environnement sûr, par
-exemple avec OpenSSL :
-
-```sh
-openssl rand -hex 32
-```
-
-Configurez la valeur produite comme `UPB_ADMIN_TOKEN` dans la configuration
-privée de l'hébergement (ou dans l'environnement du serveur web), puis
-redémarrez/rechargez le service web si nécessaire. Pour un test ponctuel en
-PowerShell, vous pouvez définir la variable pour la session courante :
+## Installation et lancement (PowerShell)
 
 ```powershell
-$env:UPB_ADMIN_TOKEN = "COLLER_ICI_LE_JETON_GENERE"
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env      # puis renseigner DATABASE_URL et UPB_SECRET_KEY
+python -m scripts.migrate        # crée/complète le schéma sur Neon (idempotent)
+python -m scripts.create_admin admin   # crée un administrateur (mot de passe demandé au clavier)
+python -m scripts.create_partner "Site officiel concours"   # crée la clé d'API du site d'inscription (affichée une fois)
+uvicorn app.main:app --reload
 ```
 
-Cette commande PowerShell ne configure que le processus courant et ses
-processus enfants ; utilisez la configuration de l'hébergement pour un
-déploiement persistant. Le jeton réel n'est pas inclus dans cette
-documentation : créez-en un nouveau pour chaque environnement et transmettez-le
-aux intégrateurs autorisés par un canal sécurisé.
+L'application écoute sur <http://127.0.0.1:8000> :
 
-Ne placez jamais ce jeton dans le code JavaScript d'un navigateur ou une
-application cliente distribuée. Pour une intégration web, faites transiter les
-appels d'administration par un serveur que vous contrôlez.
+| URL | Rôle |
+|---|---|
+| `/` | Portail étudiant (`index.html`) |
+| `/admin.html` | Espace administrateur |
+| `/scanner.html` | Scanner de pointage |
+| `/docs` | Documentation interactive (Swagger UI), **accès soumis à autorisation** (voir ci-dessous) |
+| `/redoc` | Documentation de référence (ReDoc), idem |
+| `/openapi.json` | Contrat OpenAPI généré, idem (copie versionnée : [docs/openapi.json](docs/openapi.json)) |
 
-## Endpoints
+## Documentation de l'API
 
-`{baseUrl}` ci-dessous désigne l'URL de base configurée au déploiement.
+- Swagger/OpenAPI : `/docs`, `/redoc`, `/openapi.json` (générés depuis le code, modèles dans `backend/app/docs.py`).
+- **Accès protégé** (HTTP Basic, nom d'utilisateur libre) : mot de passe = `UPB_DOCS_PASSWORD` (à communiquer aux intégrateurs que l'administrateur autorise) ou l'identifiant et le mot de passe d'un administrateur. Le mot de passe de la doc ne donne aucun accès aux routes d'administration.
+- Régénérer la copie versionnée : `python -m scripts.export_openapi` (depuis `backend/`).
+- **Guide pour les sites externes** (vérification d'identité d'un étudiant) : [docs/GUIDE_INTEGRATION.md](docs/GUIDE_INTEGRATION.md).
 
-| Méthode et chemin | Authentification | Fonction |
-|---|---|---|
-| `POST /admin_auth_check.php` | Administrateur | Vérifier le jeton. |
-| `POST /verifier.php` | Aucune actuellement | Rechercher un dossier avec `matricule`. La réponse contient aussi coordonnées et allergies/affections. |
-| `POST /inscrire.php` | Aucune actuellement | Inscrire un étudiant existant au concours. |
-| `GET /get_etudiants.php` | Administrateur | Rechercher et paginer les dossiers étudiants. |
-| `POST /update_etudiant.php` | Administrateur | Modifier téléphone, e-mail, sexe, allergies/affections et/ou date de naissance. |
-| `POST /update_telephone.php` | Administrateur | Ancienne route de modification du téléphone ; préférer `update_etudiant.php`. |
-| `POST /demander_modification.php` | Aucune actuellement | Soumettre une correction à valider par un administrateur. |
-| `GET /admin_modifications.php` | Administrateur | Lister les demandes en attente. |
-| `POST /admin_modifications.php` | Administrateur | Approuver ou refuser une demande. |
-| `POST /import_etudiants.php` | Administrateur | Importer un fichier CSV. |
-| `GET /pointage.php` | Administrateur | Lire les présences d'une date. |
-| `POST /pointage.php` | Administrateur | Enregistrer une présence par matricule. |
-
-### Exemples d'appels
-
-Inscrire un étudiant :
-
-```sh
-curl -X POST "{baseUrl}/inscrire.php" \
-  -H "Content-Type: application/json" \
-  -d '{"matricule":"KOUA1703980001"}'
-```
-
-Lister les dossiers avec authentification, recherche et pagination :
-
-```sh
-curl -G "{baseUrl}/get_etudiants.php" \
-  -H "Authorization: Bearer VOTRE_JETON_ADMIN" \
-  --data-urlencode "q=KOUA" \
-  --data-urlencode "page=1" \
-  --data-urlencode "per_page=20"
-```
-
-Proposer une correction (aucune authentification n'est actuellement requise) :
-
-```sh
-curl -X POST "{baseUrl}/demander_modification.php" \
-  -H "Content-Type: application/json" \
-  -d '{"matricule":"KOUA1703980001","telephone":"0701020304","email":"nom@exemple.ci"}'
-```
-
-Enregistrer un pointage :
-
-```sh
-curl -X POST "{baseUrl}/pointage.php" \
-  -H "Authorization: Bearer VOTRE_JETON_ADMIN" \
-  -H "Content-Type: application/json" \
-  -d '{"matricule":"KOUA1703980001","date":"2026-06-10","jour_libelle":"Jour 1"}'
-```
-
-## Contrats et règles métier
-
-- **Recherche étudiants** : `GET /get_etudiants.php` accepte `page` (1 par
-  défaut), `per_page` (20 par défaut, maximum 100) et `q` (recherche partielle
-  sur le matricule, le nom, les prénoms ou la filière). La réponse comprend
-  `data`, `total`, `page`, `per_page`, `total_pages` et les statistiques globales
-  dans `stats`.
-- **Inscription** : un matricule doit déjà exister. Une première inscription
-  retourne `201`, un matricule inconnu `404` et un étudiant déjà inscrit `409`
-  (avec son numéro de candidat).
-- **Modification directe** : `update_etudiant.php` attend `id` et au moins un
-  champ modifiable. Une date de naissance valide recalcule le matricule ; un
-  conflit retourne `409`. Une chaîne vide efface un champ texte facultatif.
-- **Demande de correction** : le corps doit contenir `matricule` et au moins un
-  des champs `nom`, `prenoms`, `date_naissance`, `filiere`, `niveau`,
-  `telephone`, `email`, `sexe`, `allergies_affection`. La demande reste en
-  attente jusqu'à son approbation. Une seconde demande en attente pour le même
-  dossier retourne `409`.
-- **Traitement des demandes** : le `POST /admin_modifications.php` attend
-  `{"id": 123, "action": "approve"}` ou `{"id": 123, "action": "reject"}`.
-- **Import CSV** : envoyer le fichier dans le champ `fichier`. Taille maximale :
-  5 Mo ; maximum : 5 000 lignes. Les colonnes requises sont `nom`, `prenoms`,
-  `date_naissance`, `filiere`, `niveau`. Les colonnes facultatives sont
-  `telephone`, `email`, `sexe`, `allergies_affection`. Les séparateurs virgule
-  et point-virgule sont reconnus. Une erreur de validation annule tout l'import
-  (`422`, aucune ligne n'est importée). Les filières et niveaux inconnus sont
-  créés lors de l'import.
-- **Pointage** : le GET accepte `?date=AAAA-MM-JJ` (aujourd'hui par défaut).
-  Le POST attend `matricule`, avec `date` et `jour_libelle` facultatifs. Un
-  étudiant ne peut être pointé qu'une fois par date (`409` en cas de doublon).
-
-## Réponses et erreurs
-
-Les opérations renvoient généralement un objet JSON avec `status` égal à
-`success` ou `error`, et un champ `message`. Les codes à traiter dépendent de
-l'opération ; les principaux sont `200` (succès), `201` (création), `400`
-(requête invalide), `401` (authentification), `404` (introuvable), `409`
-(conflit), `422` (validation) et `500` (erreur serveur). Le détail exact des
-réponses de chaque opération figure dans le contrat OpenAPI.
-
-Exemple d'erreur :
-
-```json
-{
-  "status": "error",
-  "message": "Matricule non reconnu."
-}
-```
-
-## Configuration serveur
-
-La connexion à la base peut être configurée via les variables d'environnement
-suivantes :
+## Configuration (`backend/.env`, non versionné)
 
 | Variable | Rôle |
 |---|---|
-| `UPB_DB_HOST` | Hôte PostgreSQL |
-| `UPB_DB_NAME` | Nom de la base |
-| `UPB_DB_USER` | Utilisateur de base |
-| `UPB_DB_PASS` | Mot de passe de base |
-| `UPB_DB_DRIVER` | Pilote PDO (par défaut `pgsql`) |
-| `UPB_ADMIN_TOKEN` | Jeton d'accès aux opérations administrateur |
+| `DATABASE_URL` | URL de connexion Neon (obligatoire) |
+| `DATABASE_URL_DIRECT` | Connexion Neon sans pooler, utilisée par `scripts.migrate` (facultatif) |
+| `UPB_DOCS_PASSWORD` | Mot de passe d'accès à `/docs`, `/redoc`, `/openapi.json` (10 caractères min.), à remettre aux intégrateurs autorisés |
+| `UPB_SECRET_KEY` | Clé de signature des sessions administrateur, 32 caractères minimum (obligatoire) |
+| `UPB_SESSION_HOURS` | Durée d'une session administrateur (8 h) |
+| `UPB_DEFAULT_PER_PAGE` | Pagination par défaut (20) |
+| `UPB_MAX_PER_PAGE` | Taille de page maximale (100) |
+| `UPB_DB_CONNECT_TIMEOUT` | Délai de connexion en secondes (10) |
 
-## Transférer et installer l'API sur un autre serveur
+Générer une clé : `python -c "import secrets; print(secrets.token_hex(32))"`.
+Ne jamais placer `.env` dans un dépôt. Changer `UPB_SECRET_KEY` déconnecte tous les administrateurs.
 
-L'API est le code PHP : elle doit être installée sur un serveur web PHP. La
-base PostgreSQL peut se trouver sur ce même serveur ou sur un serveur distinct,
-à condition que le serveur PHP puisse s'y connecter. Copier uniquement les
-fichiers SQL ou la base de données ne suffit pas pour rendre les endpoints
-accessibles.
+## API
 
-### Prérequis
+Corps JSON en UTF-8 (`Content-Type: application/json`), sauf l'import CSV
+(`multipart/form-data`, champ `fichier`). Les réponses ont la forme
+`{"status": "success" | "error", "message": ...}`. CORS ouvert à toutes les
+origines. Les routes admin exigent `Authorization: Bearer <jeton de session>`, obtenu par
+`POST /api/admin_login` (identifiant + mot de passe). `401` si le jeton est absent,
+invalide ou expiré ; `503` si `UPB_SECRET_KEY` n'est pas configurée.
 
-- Un serveur web configuré pour exécuter PHP (Apache/XAMPP ou équivalent).
-- PHP 7.1 au minimum pour la syntaxe utilisée ; privilégier une version PHP
-  encore maintenue.
-- Les extensions PHP `PDO`, `PDO_PGSQL` et `iconv` activées. `PDO_PGSQL` est
-  nécessaire pour la connexion PostgreSQL ; `iconv` est utilisé notamment
-  pendant l'import CSV.
-- PostgreSQL accessible depuis le serveur PHP.
-- Une base de données contenant le schéma principal de l'application.
+| Méthode et chemin | Auth | Fonction |
+|---|---|---|
+| `POST /api/verifier` | — | Retrouver un dossier par `matricule` |
+| `POST /api/demander_modification` | — | Proposer une correction à valider (`409` si déjà en attente) |
+| `POST /api/partenaire/verifier` | clé d'API | **Site officiel d'inscription** : vérifie l'étudiant et le marque inscrit au concours (idempotent) |
+| `POST /api/demander_creation` | — | Matricule inconnu : soumettre son dossier, à valider par un admin |
+| `POST /api/admin_login` | — | Connexion `{"identifiant", "password"}` → jeton de session (5 échecs = blocage 15 min) |
+| `POST /api/admin_auth_check` | admin | Vérifier la session |
+| `GET /api/get_etudiants` | admin | Liste paginée (`page`, `per_page`, `q`) + statistiques |
+| `POST /api/update_etudiant` | admin | Modifier téléphone, e-mail, sexe, allergies, date de naissance (recalcule le matricule) |
+| `POST /api/update_telephone` | admin | Ancienne route : préférer `update_etudiant` |
+| `GET /api/admin_modifications` | admin | Lister les demandes en attente |
+| `POST /api/admin_modifications` | admin | `{"id": 1, "action": "approve" \| "reject"}` |
+| `GET /api/admin_creations` | admin | Lister les demandes d'ajout de dossier en attente |
+| `POST /api/admin_creations` | admin | `{"id": 1, "action": "approve" \| "reject"}` (approve crée l'étudiant) |
+| `POST /api/admin_approve_all` | admin | Approuve d'un coup toutes les demandes en attente (corrections et ajouts de dossier) ; chaque demande est traitée indépendamment, les échecs sont listés |
+| `GET /api/admin_journal` | admin | Journal d'activité : consultation filtrable (recherche, catégorie, action, acteur, résultat, période) et paginée |
+| `GET /api/admin_journal/export` | admin | Export CSV du journal (mêmes filtres, 20 000 lignes max) |
+| `POST /api/admin_logout` | admin | Enregistre la déconnexion dans le journal |
+| `POST /api/admin_export` | admin | Enregistre un export Excel/PDF réalisé dans le navigateur |
+| `POST /api/import_etudiants` | admin | Import CSV (5 Mo / 5 000 lignes max, tout ou rien) |
+| `GET /api/pointage` | admin | Présences d'une date (`date=AAAA-MM-JJ`, `jour`) |
+| `POST /api/pointage` | admin | Enregistrer une présence (`matricule`, `date`, `jour_libelle`) ; `409` si double pointage |
 
-### 1. Préparer les fichiers à transmettre
+Règles métier :
 
-Transmettre les fichiers PHP de l'API, `student_helpers.php`, le dossier
-contenant les éventuels fichiers de l'interface si celle-ci est souhaitée,
-les scripts SQL disponibles (`01_pointage.sql`, `02_etudiant_contact.sql`,
-`03_inscription_migrations.sql`), ainsi que `README.md` et `openapi.yaml`.
+- **Parcours candidat** : le candidat saisit son matricule. Trouvé → son dossier s'affiche et il peut proposer des corrections (validées par un admin). Il n'y a **pas d'inscription au concours depuis ce portail** : elle se fait sur le site officiel d'inscription, qui appelle `/api/partenaire/verifier` ; l'étudiant est alors marqué inscrit ici. Non trouvé → message « Matricule non reconnus dans la base I-UPB. » et formulaire de saisie de ses informations (`/api/demander_creation`), le dossier n'étant créé qu'après validation admin, avec le matricule calculé.
+- **Matricule** = 3 premières lettres du nom + 1re lettre du prénom (sans accents,
+  majuscules) + `jjmmaa` de naissance + `0001`. Ex. `KOUA1703980001`.
+- **Dates** acceptées : `AAAA-MM-JJ`, `JJ/MM/AAAA`, `JJ-MM-AAAA` (pas de date future).
+- **Import CSV** : colonnes obligatoires `nom`, `prenoms`, `date_naissance`,
+  `filiere`, `niveau` ; facultatives `telephone`, `email`, `sexe`,
+  `allergies_affection`. Séparateurs `,` et `;` reconnus. Une erreur annule
+  tout l'import (`422`). Filières et niveaux inconnus sont créés.
 
-Ne pas inclure dans l'archive de code de mot de passe réel, de jeton
-administrateur, de sauvegarde contenant des données personnelles, du dossier
-`.git` ou des fichiers temporaires. Une sauvegarde de base ne doit être
-transmise séparément que si le destinataire est autorisé à accéder aux données,
-par un canal sécurisé.
-
-### 2. Préparer ou restaurer PostgreSQL
-
-**Pour transférer une base existante**, créer une sauvegarde PostgreSQL depuis
-la machine qui héberge la base, puis la restaurer sur le serveur destinataire.
-Exemple avec les outils PostgreSQL dans PowerShell :
-
-```powershell
-pg_dump -h localhost -U postgres -d upb_concours --no-owner --no-acl -f .\upb_concours.sql
-createdb -h SERVEUR_CIBLE -U postgres upb_concours
-psql -h SERVEUR_CIBLE -U postgres -d upb_concours -v ON_ERROR_STOP=1 -f .\upb_concours.sql
-```
-
-Remplacer les hôtes, utilisateurs et noms de base par les valeurs réelles. La
-commande peut demander le mot de passe ; ne l'inscrire ni dans le fichier SQL,
-ni dans une commande enregistrée ou partagée. La sauvegarde contient les
-données de la base : la protéger et la supprimer des emplacements temporaires
-après transfert sécurisé.
-
-**Pour une installation neuve**, les scripts SQL présents dans ce dépôt ne
-constituent pas le schéma initial complet : `01_pointage.sql` référence déjà la
-table `etudiant`. Il faut d'abord créer/restaurer le schéma principal et les
-données de référence requis par l'application (notamment `etudiant`, `filiere`,
-`niveau` et, pour l'inscription, `candidat_concours`). Le dépôt ne contient pas
-de script autonome qui crée toutes ces tables. Demander le schéma initial ou
-une sauvegarde autorisée à la personne qui gère la base source.
-
-Après restauration d'une sauvegarde complète à jour, vérifier les migrations
-déjà appliquées avant d'exécuter d'autres scripts. Pour une base de départ qui
-possède le schéma principal mais pas ces ajouts, appliquer les scripts dans cet
-ordre depuis le répertoire où ils se trouvent :
+Exemples :
 
 ```powershell
-psql -h SERVEUR_CIBLE -U postgres -d upb_concours -v ON_ERROR_STOP=1 -f .\01_pointage.sql
-psql -h SERVEUR_CIBLE -U postgres -d upb_concours -v ON_ERROR_STOP=1 -f .\02_etudiant_contact.sql
-psql -h SERVEUR_CIBLE -U postgres -d upb_concours -v ON_ERROR_STOP=1 -f .\03_inscription_migrations.sql
+curl.exe -X POST http://127.0.0.1:8000/api/partenaire/verifier -H "X-API-Key: CLE_PARTENAIRE" -H "Content-Type: application/json" -d '{\"matricule\":\"KOUA1703980001\"}'
+curl.exe -X POST http://127.0.0.1:8000/api/admin_login -H "Content-Type: application/json" -d '{\"identifiant\":\"admin\",\"password\":\"VOTRE_MOT_DE_PASSE\"}'
+curl.exe "http://127.0.0.1:8000/api/get_etudiants?q=KOUA" -H "Authorization: Bearer JETON_DE_SESSION"
 ```
 
-Ces scripts ajoutent le pointage, des champs de contact et les demandes de
-modification. Les fichiers `02_etudiant_contact.sql` et
-`03_inscription_migrations.sql` ajoutent certains champs en commun ; ils
-utilisent `IF NOT EXISTS` pour ces ajouts. Ils ne remplacent pas le schéma
-principal.
+## Journal d'activité
 
-### 3. Installer le code PHP
+Toutes les actions menées sur et à travers le système sont tracées dans la table
+`journal_activite` et consultables dans l'onglet **Journal** de la page admin (recherche,
+filtres, pagination, export CSV). Chaque événement conserve : date et heure, acteur
+(administrateur, partenaire, public, documentation), catégorie, action, résultat (succès ou
+échec avec le motif), cible, détails, code HTTP, adresse IP, méthode, chemin et navigateur.
 
-Copier les fichiers PHP de l'API dans le répertoire servi par le serveur web,
-par exemple `htdocs\upb-api` sous XAMPP. Le dossier doit être joignable par
-l'URL qui sera communiquée aux intégrateurs. Si seule l'API est nécessaire,
-l'interface HTML/CSS/JavaScript n'est pas obligatoire.
+| Catégorie | Actions tracées |
+|---|---|
+| Authentification | connexion (réussie ou échouée), déconnexion, accès refusé (jeton absent/invalide) sur toute route `/api` |
+| Étudiants | vérification d'un matricule (trouvé ou non), modification d'une fiche, modification du téléphone |
+| Demandes | correction ou ajout de dossier soumis par un candidat ; approbation ou refus par un admin ; approbation en masse (une ligne par demande + une synthèse) |
+| Inscriptions | vérification + marquage « inscrit » par le site officiel, ou clé d'API refusée |
+| Pointage | présence enregistrée, double pointage refusé |
+| Import / Export | import CSV (avec les erreurs), exports Excel/PDF/CSV |
+| Documentation | consultation de `/docs` et `/redoc`, tentatives refusées |
 
-Sur le serveur PHP, configurer les variables d'environnement :
+**Ce qui n'est pas enregistré** : les mots de passe, jetons de session et clés d'API ; les
+valeurs personnelles modifiées (seuls les *noms* des champs concernés le sont) ; les simples
+consultations de listes par un administrateur (liste des étudiants, pointage, demandes),
+trop nombreuses, sauf si elles sont refusées.
 
-```text
-UPB_DB_HOST=hôte PostgreSQL accessible depuis le serveur PHP
-UPB_DB_NAME=upb_concours
-UPB_DB_USER=utilisateur dédié à l'API
-UPB_DB_PASS=mot de passe de cet utilisateur
-UPB_DB_DRIVER=pgsql
-UPB_ADMIN_TOKEN=jeton aléatoire généré pour cet environnement
+**Garanties** : le journal est en ajout seul (aucune route ne le modifie ni ne le supprime) ;
+l'écriture passe par un pool de connexions dédié, indépendant de la transaction de la requête ;
+un échec d'écriture est consigné dans les logs applicatifs mais ne fait jamais échouer
+l'action. Variable `UPB_AUDIT_ENABLED=0` pour désactiver (tests). Pas de purge automatique :
+définissez une durée de conservation adaptée à vos obligations de protection des données.
+Derrière un proxy, l'adresse IP enregistrée est celle du proxy.
+
+## Base de données
+
+Les migrations de `backend/migrations/` sont idempotentes et appliquées dans
+l'ordre par `python -m scripts.migrate`. `00_schema_base.sql` est **déduit des
+requêtes du code** (le schéma initial n'était pas versionné) : si une base
+existante possède déjà ces tables avec un schéma plus riche, elle n'est pas
+modifiée (`IF NOT EXISTS`).
+
+## Tests
+
+```powershell
+cd backend
+python -m pytest -q
 ```
 
-Créer de préférence un utilisateur PostgreSQL dédié à l'application, avec les
-droits nécessaires sur les tables et séquences utilisées par l'API. Restreindre
-la connexion PostgreSQL à l'hôte PHP si la base est distante. Dans un
-environnement de production, fournir les secrets via la configuration protégée
-du serveur (et non un dépôt ou un fichier public). La configuration PHP contient
-des valeurs de repli destinées au développement : définir explicitement toutes
-les variables ci-dessus en production et ne pas utiliser ces valeurs de repli.
-
-### 4. Vérifier la connexion et les endpoints
-
-1. Vérifier depuis le serveur PHP que le pilote `pdo_pgsql` est actif et que
-   l'hôte/base/utilisateur configurés sont corrects.
-2. Envoyer une requête POST à `{baseUrl}/admin_auth_check.php` avec l'en-tête
-   `Authorization: Bearer VOTRE_JETON_ADMIN`. Une réponse `200` confirme la
-   configuration du jeton ; `503` indique qu'il manque côté serveur et `401`
-   qu'il est invalide.
-3. Tester un endpoint administrateur avec ce même en-tête et un endpoint public
-   avec des données de test autorisées.
-4. Importer `openapi.yaml` dans Swagger UI, Postman ou Insomnia. Remplacer
-   l'URL `localhost` dans `servers` par l'URL publique réelle avant de partager
-   le contrat.
-5. Activer HTTPS avant tout échange de données réelles. Vérifier aussi les
-   règles CORS si le système intégrateur appelle l'API depuis un navigateur.
-
-Communiquer aux intégrateurs l'URL HTTPS, le contrat OpenAPI et les consignes
-d'authentification nécessaires. Transmettre le jeton administrateur par un
-canal secret distinct, uniquement aux intégrateurs autorisés ; ne jamais
-l'inclure dans un exemple, le fichier OpenAPI, une application cliente ou un
-dépôt de code.
-
-## Export et réutilisation des données
-
-Le projet ne fournit pas actuellement d'endpoint dédié pour exporter un CSV ou
-un fichier de sauvegarde. Un système peut récupérer les étudiants via
-`GET /get_etudiants.php` en parcourant les pages `page`/`per_page` ; cette route
-requiert le jeton administrateur et retourne des données personnelles. Pour
-une sauvegarde ou une migration complète, utiliser les outils PostgreSQL
-`pg_dump`/`psql` avec l'accord et les protections appropriés, plutôt qu'un
-endpoint HTTP. Ne pas partager les exports de données sans autorisation.
+`test_api_basic.py` et `test_student_helpers.py` n'utilisent pas la base.
+`test_db_flow.py` exécute un parcours complet sur la base de `DATABASE_URL`
+avec des données préfixées `ZZTEST`/`ZZT`, supprimées avant et après le test.
 
 ## Sécurité et données personnelles
 
-Les réponses de `verifier.php` et de la liste administrateur incluent des
-données personnelles, dont le champ `allergies_affection`. Le code actuel
-n'exige pas de jeton sur `verifier.php` et autorise les demandes de correction
-sans authentification. Utilisez HTTPS, limitez l'accès réseau en production et
-évaluez les contrôles d'accès nécessaires avant d'exposer ces routes. Le jeton
-administrateur protège les routes admin, mais n'est pas un mécanisme
-d'authentification des étudiants.
+`/api/verifier` renvoie des données personnelles (dont `allergies_affection`)
+sans authentification, et les demandes de correction sont ouvertes : comportement
+hérité de l'application d'origine. Utilisez HTTPS et limitez l'accès réseau en
+production. Les comptes administrateurs (mots de passe hachés scrypt, sessions signées et
+expirantes) protègent les routes d'administration mais n'authentifient pas les étudiants.

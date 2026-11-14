@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concours Génie UPB - Mon dossier</title>
+    <link rel="stylesheet" href="genie.css">
+</head>
+
+<body>
+
+    <header class="top">
+        <a class="brand-mark" href="index.html" aria-label="Accueil UPB">
+            <img class="brand-mark__image" src="logo-upb.png" alt="Logo de l’incubateur de l’UPB">
+        </a>
+        <div>
+            <h1>Université Polytechnique de Bingerville (UPB)</h1>
+            <p>INCUBATEUR</p>
+        </div>
+    </header>
+
+    <main class="stage">
+
+
+        <section class="hero">
+            <h2 class="sticker" data-t="GÉNIE UPB">GÉNIE UPB</h2>
+            <p class="edition">Édition 2026</p>
+            <p class="lead">Vérifiez et mettez à jour vos informations de candidat Génie UPB.</p>
+            <div class="bubble" role="status" aria-live="polite"><span id="say"></span></div>
+            <div id="bot-slot" style="--bs:clamp(190px,26vw,300px)"></div>
+        </section>
+
+        <div class="wrap">
+            <section class="card" data-tilt>
+                <div class="glare"></div>
+                <div class="steps">
+                    <div class="step on" id="s1"><span class="dot">1</span>&nbsp;<span class="t">Vérifier</span></div>
+                    <span class="bar" id="b1"><i></i></span>
+                    <div class="step" id="s2"><span class="dot">2</span>&nbsp;<span class="t">Candidat</span></div>
+                </div>
+
+                <h2>Portail candidat</h2>
+                <p class="sub">Saisissez votre matricule pour rechercher votre dossier étudiant.</p>
+
+                <label for="matricule">Numéro de matricule</label>
+                <input type="text" id="matricule" placeholder="Ex : KOUA1703980001" autocomplete="off">
+
+                <button class="btn" id="btn-verif" onclick="verifierEtudiant()">Vérifier mes informations</button>
+
+                <div id="resultat-verification" class="hidden"></div>
+
+                <div id="section-inscription" class="hidden">
+                    <p class="sub" id="section-sub">Vérifiez votre dossier. Toute correction sera appliquée uniquement après validation par un administrateur.</p>
+                    <div class="profile-fields">
+                        <div>
+                            <label for="nom">Nom</label>
+                            <input type="text" id="nom" autocomplete="family-name">
+                        </div>
+                        <div>
+                            <label for="prenoms">Prénoms</label>
+                            <input type="text" id="prenoms" autocomplete="given-name">
+                        </div>
+                        <div>
+                            <label for="filiere">Filière</label>
+                            <input type="text" id="filiere">
+                        </div>
+                        <div>
+                            <label for="niveau">Niveau</label>
+                            <input type="text" id="niveau">
+                        </div>
+                        <div>
+                            <label for="date-naissance-correction">Date de naissance</label>
+                            <input type="date" id="date-naissance-correction" autocomplete="bday">
+                        </div>
+                        <div class="contact-field">
+                            <label for="email">Adresse e-mail</label>
+                            <input type="email" id="email" placeholder="prenom.nom@exemple.ci" autocomplete="email">
+                        </div>
+                        <div>
+                            <label for="telephone">Téléphone</label>
+                            <input type="text" id="telephone" placeholder="0701020304" autocomplete="tel" inputmode="tel">
+                        </div>
+                        <div class="contact-field">
+                            <span class="sexe-label" id="sexe-label">Sexe</span>
+                            <div class="sexe-picker" id="sexe-picker" role="radiogroup" aria-labelledby="sexe-label">
+                                <button type="button" class="sexe-opt" data-sexe="M" role="radio" aria-checked="false">Masculin</button>
+                                <button type="button" class="sexe-opt" data-sexe="F" role="radio" aria-checked="false">Féminin</button>
+                            </div>
+                        </div>
+                        <div class="full">
+                            <label for="allergies-affection">Allergies ou affection particulière</label>
+                            <textarea id="allergies-affection" maxlength="2000" rows="3" placeholder="À préciser si nécessaire"></textarea>
+                        </div>
+                    </div>
+                    <button class="btn" id="btn-modifs" onclick="soumettreModifications()">Soumettre mes modifications pour validation</button>
+                    <div id="resultat-modification" class="hidden"></div>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <footer class="foot">&copy; 2026 - Université Polytechnique de Bingerville (UPB)</footer>
+
+    <script src="genie-fx.js"></script>
+    <script>
+        let matriculeActuel = "";
+        let sexeChoisi = "";
+        let modeCreation = false; // true : matricule inconnu, le candidat renseigne son dossier
+        const { say, mood, busy, confetti, reveal, esc, jump, nod } = GFX;
+        const $ = id => document.getElementById(id);
+
+        GFX.mountBot('#bot-slot');
+
+        document.querySelectorAll('.sexe-opt').forEach(btn => btn.addEventListener('click', () => {
+            sexeChoisi = btn.dataset.sexe;
+            majSexePicker();
+        }));
+
+        function majSexePicker() {
+            document.querySelectorAll('.sexe-opt').forEach(o => {
+                const on = o.dataset.sexe === sexeChoisi;
+                o.classList.toggle('on', on);
+                o.setAttribute('aria-checked', on ? 'true' : 'false');
+            });
+        }
+
+        function champValide(el, ok) {
+            if (ok) return true;
+            secouer(el);
+            return false;
+        }
+
+        const TXT_MODIFS = 'Soumettre mes modifications pour validation';
+        const TXT_CREATION = 'Envoyer mon dossier pour validation';
+
+        function viderFormulaire() {
+            ['nom', 'prenoms', 'filiere', 'niveau', 'email', 'telephone'].forEach(id => $(id).value = '');
+            $('date-naissance-correction').value = '';
+            $('allergies-affection').value = '';
+            sexeChoisi = '';
+            majSexePicker();
+        }
+
+        function definirMode(creation) {
+            modeCreation = creation;
+            const btn = $('btn-modifs');
+            btn.textContent = creation ? TXT_CREATION : TXT_MODIFS;
+            btn.dataset.txt = btn.textContent;
+            btn.disabled = false;
+            $('section-sub').textContent = creation
+                ? "Votre matricule n'a pas été trouvé. Renseignez vos informations : votre dossier sera créé uniquement après validation par un administrateur."
+                : "Vérifiez votre dossier. Toute correction sera appliquée uniquement après validation par un administrateur.";
+            $('resultat-modification').classList.add('hidden');
+        }
+
+        function setStep(n) {
+            [1, 2].forEach(i => {
+                const s = $('s' + i);
+                s.className = 'step' + (i < n ? ' done' : i === n ? ' on' : '');
+                s.querySelector('.dot').textContent = i < n ? '✓' : i;
+            });
+            $('b1').classList.toggle('fill', n > 1);
+        }
+
+        function charge(btn, on, texte) {
+            btn.disabled = on;
+            btn.classList.toggle('loading', on);
+            if (texte) btn.dataset.txt = btn.dataset.txt || btn.textContent;
+            btn.textContent = on ? texte : (btn.dataset.txt || btn.textContent);
+        }
+
+        function secouer(input) { input.classList.remove('shake'); void input.offsetWidth; input.classList.add('shake'); }
+
+        async function verifierEtudiant() {
+            const input = $('matricule');
+            matriculeActuel = input.value.trim();
+            const resDiv = $('resultat-verification');
+            const inscDiv = $('section-inscription');
+            const btn = $('btn-verif');
+
+            resDiv.classList.remove('hidden');
+            inscDiv.classList.add('hidden');
+            setStep(1);
+
+            if (!matriculeActuel) {
+                resDiv.innerHTML = `<div class="panel err">Veuillez entrer votre matricule.</div>`;
+                secouer(input); mood('sad');
+                say("Il me faut votre matricule pour rechercher votre dossier.");
+                return;
+            }
+
+            charge(btn, true, 'Vérification en cours...');
+            resDiv.innerHTML = '';
+            busy(true); mood('think'); say("Je parcours la liste des étudiants...");
+
+            try {
+                const response = await fetch('/api/verifier', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ matricule: matriculeActuel })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    afficherDossier(data);
+                } else if (response.status === 404) {
+                    afficherFormulaireCreation(data.message);
+                } else {
+                    resDiv.innerHTML = `<div class="panel err">${esc(data.message)}</div>`;
+                    secouer(input); mood('sad');
+                    say(data.message + " Vérifiez votre matricule.");
+                }
+            } catch (error) {
+                resDiv.innerHTML = `<div class="panel err">Erreur de connexion avec le serveur.</div>`;
+                mood('sad'); say("Je n'arrive pas à joindre le serveur. Vérifiez votre connexion et réessayez.");
+            } finally {
+                busy(false); charge(btn, false);
+            }
+        }
+
+        function afficherFormulaireCreation(message) {
+            $('resultat-verification').innerHTML = `<div class="panel err">${esc(message)}</div>`;
+            viderFormulaire();
+            definirMode(true);
+            $('section-inscription').classList.remove('hidden');
+            setStep(2); mood('sad');
+            say("Je ne trouve pas ce matricule. Renseignez vos informations : un administrateur les validera.");
+        }
+
+        function afficherDossier(data) {
+            const resDiv = $('resultat-verification');
+            const d = data.data;
+            const ini = ((d.nom || '')[0] || '') + ((d.prenoms || '')[0] || '');
+            resDiv.innerHTML = `
+                <div class="panel ok">
+                    <p class="msg">${esc(data.message)}</p>
+                    <div class="id">
+                        <div class="avatar">${esc(ini)}</div>
+                        <div><b>${esc(d.nom)} ${esc(d.prenoms)}</b><span>${esc(d.filiere || 'Filière non renseignée')}, ${esc(d.niveau || 'Niveau non renseigné')}</span></div>
+                    </div>
+                </div>`;
+            $('nom').value = d.nom || '';
+            $('prenoms').value = d.prenoms || '';
+            $('filiere').value = d.filiere || '';
+            $('niveau').value = d.niveau || '';
+            $('date-naissance-correction').value = d.date_naissance || '';
+            $('email').value = d.email || '';
+            $('telephone').value = d.telephone || '';
+            $('allergies-affection').value = d.allergies_affection || '';
+            sexeChoisi = d.sexe || '';
+            majSexePicker();
+            definirMode(false);
+            $('section-inscription').classList.remove('hidden');
+            setStep(2); mood('wow'); jump();
+            say(`Bonjour ${(d.prenoms || '').split(' ')[0]} : vérifiez votre dossier et corrigez-le si besoin.`);
+            setTimeout(() => mood('happy'), 2500);
+        }
+
+        async function soumettreModifications() {
+            const btn = $('btn-modifs');
+            const result = $('resultat-modification');
+            const corrections = {
+                nom: $('nom').value.trim(),
+                prenoms: $('prenoms').value.trim(),
+                filiere: $('filiere').value.trim(),
+                niveau: $('niveau').value.trim(),
+                date_naissance: $('date-naissance-correction').value,
+                telephone: $('telephone').value.trim(),
+                email: $('email').value.trim(),
+                sexe: sexeChoisi,
+                allergies_affection: $('allergies-affection').value.trim()
+            };
+
+            if (!corrections.nom || !corrections.prenoms || !corrections.date_naissance) {
+                result.classList.remove('hidden');
+                result.innerHTML = '<div class="panel err">Le nom, les prénoms et la date de naissance sont obligatoires.</div>';
+                return;
+            }
+            if (corrections.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(corrections.email)) {
+                secouer($('email'));
+                $('email').focus();
+                return;
+            }
+
+            charge(btn, true, 'Envoi en cours...');
+            busy(true); mood('think');
+            try {
+                const response = await fetch(modeCreation ? '/api/demander_creation' : '/api/demander_modification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        matricule: matriculeActuel,
+                        ...corrections
+                    })
+                });
+                const data = await response.json();
+                result.classList.remove('hidden');
+                result.innerHTML = `<div class="panel ${response.ok ? 'ok' : 'err'}">${esc(data.message || 'Réponse du serveur invalide.')}</div>`;
+                if (response.ok) {
+                    btn.disabled = true;
+                    say(modeCreation
+                        ? "Votre dossier est envoyé. Une fois validé par un administrateur, revenez vérifier votre matricule."
+                        : "Votre demande est envoyée. Un administrateur doit la valider avant toute mise à jour.");
+                } else {
+                    mood('sad'); say(data.message || "La demande n'a pas pu être envoyée.");
+                }
+            } catch (error) {
+                result.classList.remove('hidden');
+                result.innerHTML = '<div class="panel err">Impossible de joindre le serveur.</div>';
+                mood('sad');
+            } finally {
+                busy(false);
+                if (!btn.disabled) charge(btn, false);
+            }
+        }
+
+        $('matricule').addEventListener('keydown', e => { if (e.key === 'Enter') verifierEtudiant(); });
+        $('matricule').addEventListener('input', nod);
+        setTimeout(() => say("Bonjour, je suis Gé, votre guide ! Entrez votre matricule pour rechercher votre dossier."), 700);
+    </script>
+</body>
+
+</html>
