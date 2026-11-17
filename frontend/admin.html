@@ -461,6 +461,90 @@
             .journal-actions{justify-content:stretch}
             .journal-actions .admin-action{flex:1}
         }
+
+        /* ===== Intégrations ===== */
+        .integration-howto{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;margin:16px 24px 0;
+            padding:16px 20px;border:1px dashed #bfd0ee;border-radius:14px;background:#eef3ff;font-size:.86rem;line-height:1.55;color:var(--navy)}
+        .integration-howto p{margin:4px 0 0;color:var(--mut)}
+        .integration-howto code,.partner-card code{font-family:ui-monospace,Consolas,monospace}
+        .integration-howto .endpoint{padding:8px 12px;border-radius:10px;background:#fff;border:1px solid #dce5f5;font-size:.8rem;overflow-wrap:anywhere}
+        .partner-list{display:grid;gap:20px;padding:20px 24px 28px}
+        .partner-card{display:grid;gap:20px;padding:22px 24px;border:1px solid #dce5f5;border-radius:18px;background:#f3f6fd}
+        .partner-card.is-off{background:#f5f6f9;border-style:dashed}
+        .partner-card.is-off .partner-head h3{color:var(--mut)}
+        .partner-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px 16px}
+        .partner-head h3{margin:0 0 4px;font:800 1.15rem var(--disp);color:var(--navy)}
+        .partner-meta{margin:0;font-size:.82rem;color:var(--mut);overflow-wrap:anywhere}
+        .partner-meta a{color:var(--royal)}
+        .partner-badges{display:flex;flex-wrap:wrap;gap:8px}
+        .partner-desc{margin:-6px 0 0;font-size:.88rem;line-height:1.55;color:var(--navy);max-width:80ch}
+        .partner-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:0}
+        .partner-facts > div{min-width:0;padding:12px 14px;border:1px solid #e1e9f6;border-radius:12px;background:#fff}
+        .partner-facts dt{margin-bottom:6px;font:700 .68rem var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+        .partner-facts dd{margin:0;font-size:.88rem;line-height:1.5;color:var(--navy)}
+        .chips{display:flex;flex-wrap:wrap;gap:6px}
+        .chip-s{padding:3px 9px;border-radius:99px;background:#e7eeff;color:var(--royal2);font:700 .74rem var(--font)}
+        .sens-note{flex-basis:100%;font-size:.74rem;color:#8a5200}
+        .partner-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+        .partner-stats .mini-stat{padding:12px 14px}
+        .partner-stats .small-b{font-size:.95rem;line-height:1.3}
+        .keys-table{min-width:760px;background:#fff;border-radius:12px}
+        .keys-table td{padding-top:12px;padding-bottom:12px}
+        .keys-table tr.key-off td{color:var(--mut)}
+        .admin-action.small{padding:7px 12px;font-size:.8rem}
+        .admin-action.reject{background:#8c2630}
+        .tag.info{background:#e7eeff;color:var(--royal2)}
+        .partner-card .request-actions{border-top:1px solid #dde6f5}
+        /* Fenêtres */
+        dialog.upb-dialog{margin:auto;width:min(680px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:0;border:0;border-radius:22px;
+            background:var(--paper);color:var(--navy);box-shadow:0 40px 90px -20px rgba(0,0,20,.7);overflow:hidden}
+        dialog.upb-dialog.small{width:min(500px,calc(100vw - 32px))}
+        dialog.upb-dialog[open]{display:flex;flex-direction:column}
+        dialog.upb-dialog::backdrop{background:rgba(7,18,70,.6);backdrop-filter:blur(2px)}
+        dialog.upb-dialog form{display:flex;flex-direction:column;min-height:0;flex:1}
+        .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px 26px 14px}
+        .dialog-head h3{margin:0;font:800 1.2rem var(--disp);color:var(--bp)}
+        .dialog-close{width:34px;height:34px;border:0;border-radius:50%;background:#e8effa;color:var(--mut);font-size:1.3rem;line-height:1;cursor:pointer}
+        .dialog-close:hover{background:var(--royal);color:#fff}
+        .dialog-body{display:grid;gap:20px;padding:6px 26px 22px;overflow-y:auto}
+        .dialog-foot{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;padding:16px 26px 22px;border-top:1px solid #e3ebf5}
+        .dialog-lead{margin:0;font-size:.88rem;color:var(--mut)}
+        .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 14px}
+        .form-grid .full{grid-column:1/-1}
+        .form-grid .field{min-width:0}
+        .form-grid label{display:block;margin-bottom:6px;font:700 .72rem var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+        .form-grid input,.form-grid textarea{width:100%;padding:10px 12px;border:1.5px solid #dbe5f7;border-radius:11px;background:#fff;
+            color:var(--bp);font:500 .9rem var(--font);resize:vertical}
+        .form-grid input:disabled{background:#eef2f9;color:var(--mut)}
+        .form-grid input:focus,.form-grid textarea:focus{outline:none;border-color:var(--royal);box-shadow:0 0 0 4px rgba(31,85,216,.14)}
+        .form-grid small,.fieldset-note{display:block;margin-top:6px;font-size:.76rem;line-height:1.5;color:var(--mut)}
+        .fieldset-note{margin:4px 0 0}
+        .fieldset-note.first{margin:-4px 0 4px}
+        dialog.is-edit .only-create{display:none}
+        .choice-group{margin:0;padding:0;border:0;display:grid;gap:10px;min-width:0}
+        .choice-group legend{padding:0;margin-bottom:10px;font:700 .72rem var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+        .choice{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1.5px solid #dbe5f7;border-radius:12px;background:#fff;cursor:pointer}
+        .choice:has(input:checked){border-color:var(--royal);background:#eef3ff}
+        .choice b{display:block;font-size:.9rem}
+        .choice small{display:block;margin-top:2px;font-size:.78rem;color:var(--mut);line-height:1.45}
+        .check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+        .check{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1.5px solid #dbe5f7;border-radius:10px;background:#fff;font-size:.86rem;cursor:pointer}
+        .check:has(input:checked){border-color:var(--royal);background:#eef3ff}
+        .check:has(input:disabled){opacity:.75;cursor:default}
+        .secret-warning{margin:0;padding:12px 14px;border-radius:12px;background:#fff6e5;border:1px solid #f1d9a6;color:#7a5200;font-size:.88rem;line-height:1.5}
+        .secret-box{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px;border:1.5px solid var(--royal);border-radius:14px;background:#eef3ff}
+        .secret-box code{flex:1 1 260px;min-width:0;font:600 .86rem ui-monospace,Consolas,monospace;color:var(--navy);overflow-wrap:anywhere;user-select:all}
+        .secret-sub{margin:0 0 -10px;font:700 .72rem var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+        .secret-example{margin:0;padding:12px 14px;border-radius:12px;background:#0f1b4d;color:#dbe6ff;font:500 .76rem/1.6 ui-monospace,Consolas,monospace;overflow-x:auto}
+        @media(max-width:820px){.partner-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:700px){
+            .integration-howto{margin:16px 16px 0}
+            .partner-list{padding:16px 16px 24px}
+            .partner-card{padding:18px 16px}
+            .form-grid{grid-template-columns:1fr}
+            .dialog-head,.dialog-body,.dialog-foot{padding-left:18px;padding-right:18px}
+            .dialog-foot .admin-action{flex:1}
+        }
     </style>
 </head>
 
@@ -492,7 +576,7 @@
         <div class="head-txt">
             <p class="kicker">Université Polytechnique de Bingerville</p>
             <h1>Panneau d'administration</h1>
-            <p>Concours Génie UPB · Édition 2026</p>
+            <p>BD Incubateur UPB · Édition 2026</p>
         </div>
         <div class="head-actions">
             <div class="head-clock" aria-live="off">
@@ -500,7 +584,7 @@
                 <div><b id="todayDate">—</b><span id="todayTime">—</span></div>
             </div>
             <a href="scanner.html" class="pill solid">Scanner QR</a>
-            <a href="index.html" class="pill">Vue candidat</a>
+            <a href="index.html" class="pill">Vue étudiant</a>
             <button type="button" class="admin-logout" id="admin-logout">Déconnexion</button>
         </div>
     </header>
@@ -513,6 +597,7 @@
             <a href="#demandes">Corrections</a>
             <a href="#etudiants">Étudiants</a>
             <a href="#pointage">Pointage</a>
+            <a href="#integrations">Intégrations</a>
             <a href="#journal">Journal</a>
         </nav>
     </div>
@@ -783,6 +868,164 @@
             </div>
         </section>
 
+        <!-- Intégrations : sites externes -->
+        <section class="sheet" id="integrations" aria-labelledby="integrations-title" data-reveal>
+            <div class="sheet-head">
+                <div class="sheet-title">
+                    <p class="eyebrow">Sites externes</p>
+                    <h2 id="integrations-title">Intégrations</h2>
+                    <p class="sub">Autorisez des sites externes à vérifier l’identité des étudiants, choisissez ce qu’ils peuvent faire et les données qu’ils reçoivent, et gérez leurs clés d’API.</p>
+                </div>
+            </div>
+
+            <div class="journal-stats" aria-label="Synthèse des intégrations">
+                <div class="mini-stat"><b id="i-actives">0</b><span>intégrations actives</span></div>
+                <div class="mini-stat"><b id="i-cles">0</b><span>clés d’API actives</span></div>
+                <div class="mini-stat"><b id="i-appels">0</b><span>appels sur 24 h</span></div>
+                <div class="mini-stat"><b id="i-echecs">0</b><span>refus et échecs sur 24 h</span></div>
+            </div>
+
+            <div class="section-tools">
+                <p class="pending-summary" id="i-summary" aria-live="polite">Chargement des intégrations…</p>
+                <div class="tools-actions">
+                    <button class="admin-action ghost" type="button" id="i-refresh">Actualiser</button>
+                    <button class="admin-action" type="button" id="i-new">Nouvelle intégration</button>
+                </div>
+            </div>
+
+            <div class="integration-howto">
+                <div>
+                    <b>Point d’accès pour les sites externes</b>
+                    <p>Chaque appel doit envoyer une clé d’API dans l’en-tête <code>X-API-Key</code>. La clé n’est affichée qu’une seule fois, à sa création.</p>
+                </div>
+                <code class="endpoint" id="i-endpoint">POST /api/partenaire/verifier</code>
+            </div>
+
+            <div class="partner-list" id="integrations-list"><p class="journal-empty">Chargement des intégrations…</p></div>
+        </section>
+
+        <!-- Fenêtres : fiche d'intégration, nouvelle clé, clé générée -->
+        <dialog class="upb-dialog" id="partner-dialog" aria-labelledby="partner-dialog-title">
+            <form id="partner-form" autocomplete="off">
+                <header class="dialog-head">
+                    <h3 id="partner-dialog-title">Nouvelle intégration</h3>
+                    <button class="dialog-close" type="button" data-close aria-label="Fermer">×</button>
+                </header>
+                <div class="dialog-body">
+                    <div class="form-grid">
+                        <div class="field full">
+                            <label for="p-nom">Nom de l’intégration</label>
+                            <input id="p-nom" maxlength="80" minlength="3" required placeholder="Ex. Site officiel d’inscription au concours">
+                            <small id="p-nom-note">Le nom identifie l’intégration dans le journal d’activité ; il ne pourra plus être modifié.</small>
+                        </div>
+                        <div class="field">
+                            <label for="p-site">Adresse du site</label>
+                            <input id="p-site" type="url" maxlength="255" placeholder="https://…">
+                        </div>
+                        <div class="field">
+                            <label for="p-contact">Contact technique</label>
+                            <input id="p-contact" maxlength="255" placeholder="nom@exemple.ci">
+                        </div>
+                        <div class="field full">
+                            <label for="p-desc">Description</label>
+                            <textarea id="p-desc" maxlength="1000" rows="2" placeholder="À quoi sert cette intégration ?"></textarea>
+                        </div>
+                    </div>
+
+                    <fieldset class="choice-group">
+                        <legend>Ce que le site est autorisé à faire</legend>
+                        <label class="choice"><input type="radio" name="p-permission" value="VERIFICATION" checked>
+                            <span><b>Vérification seule</b><small>Lit l’identité d’un étudiant à partir de son matricule. Ne modifie rien.</small></span></label>
+                        <label class="choice"><input type="radio" name="p-permission" value="INSCRIPTION">
+                            <span><b>Vérification et inscription</b><small>Marque aussi l’étudiant vérifié comme inscrit au concours (site officiel d’inscription).</small></span></label>
+                    </fieldset>
+
+                    <fieldset class="choice-group">
+                        <legend>Données de l’étudiant transmises au site</legend>
+                        <p class="fieldset-note first">Le matricule suffit pour vérifier un étudiant : le site n’a pas besoin de demander d’autres informations à l’utilisateur. Le matricule est toujours transmis ; ne cochez le reste que si le site en a besoin.</p>
+                        <div><button class="admin-action ghost small" type="button" id="p-champs-min">Matricule seul</button></div>
+                        <div class="check-grid" id="p-champs-base"></div>
+                        <p class="fieldset-note">Données sensibles : à n’accorder que si le site en a réellement besoin.</p>
+                        <div class="check-grid" id="p-champs-sensibles"></div>
+                    </fieldset>
+
+                    <div class="form-grid">
+                        <div class="field full">
+                            <label for="p-ips">Adresses IP autorisées</label>
+                            <textarea id="p-ips" rows="2" placeholder="Une adresse ou un réseau par ligne, ex. 203.0.113.10 ou 198.51.100.0/24"></textarea>
+                            <small>Laissez vide pour accepter toutes les adresses. Derrière un proxy ou un CDN, l’adresse vue par le serveur est celle du proxy.</small>
+                        </div>
+                        <div class="field">
+                            <label for="p-limite">Quota d’appels par minute</label>
+                            <input id="p-limite" type="number" min="1" max="100000" placeholder="Illimité">
+                        </div>
+                        <div class="field only-create">
+                            <label for="p-cle-libelle">Libellé de la première clé</label>
+                            <input id="p-cle-libelle" maxlength="80" placeholder="Production">
+                        </div>
+                        <div class="field only-create">
+                            <label for="p-cle-expire">Expiration de la première clé</label>
+                            <input id="p-cle-expire" type="date">
+                        </div>
+                    </div>
+                    <p class="auth-error" id="partner-error" role="alert" hidden></p>
+                </div>
+                <footer class="dialog-foot">
+                    <button class="admin-action ghost" type="button" data-close>Annuler</button>
+                    <button class="admin-action" type="submit" id="partner-submit">Créer et générer la clé</button>
+                </footer>
+            </form>
+        </dialog>
+
+        <dialog class="upb-dialog small" id="newkey-dialog" aria-labelledby="newkey-title">
+            <form id="newkey-form" autocomplete="off">
+                <header class="dialog-head">
+                    <h3 id="newkey-title">Générer une nouvelle clé</h3>
+                    <button class="dialog-close" type="button" data-close aria-label="Fermer">×</button>
+                </header>
+                <div class="dialog-body">
+                    <p class="dialog-lead" id="newkey-lead"></p>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="nk-libelle">Libellé</label>
+                            <input id="nk-libelle" maxlength="80" placeholder="Ex. Rotation décembre">
+                        </div>
+                        <div class="field">
+                            <label for="nk-expire">Expire le</label>
+                            <input id="nk-expire" type="date">
+                        </div>
+                    </div>
+                    <p class="fieldset-note">Les clés existantes restent valides jusqu’à leur révocation : vous pouvez ainsi changer de clé sans coupure.</p>
+                    <p class="auth-error" id="newkey-error" role="alert" hidden></p>
+                </div>
+                <footer class="dialog-foot">
+                    <button class="admin-action ghost" type="button" data-close>Annuler</button>
+                    <button class="admin-action" type="submit" id="newkey-submit">Générer la clé</button>
+                </footer>
+            </form>
+        </dialog>
+
+        <dialog class="upb-dialog" id="secret-dialog" aria-labelledby="secret-title">
+            <header class="dialog-head">
+                <h3 id="secret-title">Clé d’API générée</h3>
+                <button class="dialog-close" type="button" data-close aria-label="Fermer">×</button>
+            </header>
+            <div class="dialog-body">
+                <p class="secret-warning"><b>Copiez cette clé maintenant.</b> Elle ne sera plus jamais affichée : en cas de perte, il faudra en générer une nouvelle.</p>
+                <p class="dialog-lead" id="secret-lead"></p>
+                <div class="secret-box">
+                    <code id="secret-value"></code>
+                    <button class="admin-action" type="button" id="secret-copy">Copier</button>
+                </div>
+                <h4 class="secret-sub">Exemple d’appel</h4>
+                <pre class="secret-example" id="secret-example"></pre>
+                <p class="fieldset-note">Transmettez la clé par un canal sûr, uniquement à la personne responsable du site concerné. Ne la placez jamais dans le code d’une page web ou d’une application distribuée.</p>
+            </div>
+            <footer class="dialog-foot">
+                <button class="admin-action" type="button" data-close id="secret-done">J’ai copié la clé</button>
+            </footer>
+        </dialog>
+
         <!-- Journal d'activité -->
         <section class="sheet" id="journal" aria-labelledby="journal-title" data-reveal>
             <div class="sheet-head">
@@ -891,6 +1134,7 @@
 
     <div id="toasts" aria-live="polite" aria-atomic="true"></div>
 
+    <script src="config.js"></script>
     <script src="genie-fx.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script>
@@ -910,6 +1154,7 @@
         let greeted = false;
         let logoData = null;
         let pdfLib = null;
+        const API = (window.UPB_API_URL || '').replace(/\/+$/, '');
         let adminToken = '';
         let dashboardBooted = false;
 
@@ -921,7 +1166,7 @@
         function adminFetch(url, options = {}) {
             const headers = new Headers(options.headers || {});
             headers.set('Authorization', 'Bearer ' + adminToken);
-            return fetch(url, { ...options, headers }).then(response => {
+            return fetch(API + url, { ...options, headers }).then(response => {
                 if (response.status === 401 && adminToken) sessionExpiree();
                 return response;
             });
@@ -2156,7 +2401,7 @@
         }
 
         async function authentifierAdmin(token) {
-            const response = await fetch('/api/admin_auth_check', {
+            const response = await fetch(API + '/api/admin_auth_check', {
                 method: 'POST',
                 headers: { Authorization: 'Bearer ' + token }
             });
@@ -2183,7 +2428,7 @@
             button.disabled = true;
             error.hidden = true;
             try {
-                const response = await fetch('/api/admin_login', {
+                const response = await fetch(API + '/api/admin_login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -2460,11 +2705,15 @@
             DEMANDES_APPROUVEES_EN_MASSE: 'Approbation en masse', INSCRIPTION_CONCOURS: 'Inscription au concours (site officiel)',
             IMPORT_ETUDIANTS_CSV: 'Import CSV d’étudiants', POINTAGE_ENREGISTRE: 'Pointage enregistré',
             EXPORT_DONNEES: 'Export de données', JOURNAL_EXPORTE: 'Export du journal',
-            DOCUMENTATION_CONSULTEE: 'Documentation consultée', ACCES_REFUSE: 'Accès refusé'
+            DOCUMENTATION_CONSULTEE: 'Documentation consultée', ACCES_REFUSE: 'Accès refusé',
+            VERIFICATION_PARTENAIRE: 'Vérification par une intégration', PARTENAIRE_CREE: 'Intégration créée',
+            PARTENAIRE_MODIFIE: 'Intégration modifiée', PARTENAIRE_ACTIVE: 'Intégration activée',
+            PARTENAIRE_DESACTIVE: 'Intégration désactivée', PARTENAIRE_CLE_GENEREE: 'Clé d’API générée',
+            PARTENAIRE_CLE_REVOQUEE: 'Clé d’API révoquée', PARTENAIRE_SUPPRIME: 'Intégration supprimée'
         };
         const JOURNAL_CATEGORIES = {
             AUTH: 'Authentification', ETUDIANT: 'Étudiants', DEMANDE: 'Demandes', INSCRIPTION: 'Inscriptions',
-            POINTAGE: 'Pointage', IMPORT: 'Import', EXPORT: 'Exports', JOURNAL: 'Journal', DOCUMENTATION: 'Documentation'
+            POINTAGE: 'Pointage', IMPORT: 'Import', EXPORT: 'Exports', JOURNAL: 'Journal', DOCUMENTATION: 'Documentation', PARTENAIRE: 'Intégrations'
         };
         const JOURNAL_ACTEURS = {
             ADMIN: 'Administrateur', PARTENAIRE: 'Partenaire', PUBLIC: 'Public', DOCUMENTATION: 'Documentation', SYSTEME: 'Système'
@@ -2599,6 +2848,324 @@
             }).catch(() => { });
         }
 
+
+        /* ===== Intégrations (sites externes) ===== */
+        const CHAMPS_LIBELLES = {
+            matricule: 'Matricule', nom: 'Nom', prenoms: 'Prénoms', date_naissance: 'Date de naissance',
+            filiere: 'Filière', niveau: 'Niveau', sexe: 'Sexe', email: 'E-mail', telephone: 'Téléphone',
+            allergies_affection: 'Allergies / affection'
+        };
+        const CHAMPS_SENSIBLES = ['sexe', 'email', 'telephone', 'allergies_affection'];
+        const PERMISSIONS_LIBELLES = { VERIFICATION: 'Vérification seule', INSCRIPTION: 'Vérification et inscription' };
+        const integrations = { liste: [], champsDispo: [], champsDefaut: [], edition: null, cleCible: null };
+
+        function dateCourte(value) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+            return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
+        }
+
+        function puces(items, vide) {
+            return items.length ? items.map(i => `<span class="chip-s">${esc(i)}</span>`).join('') : `<span class="journal-none">${esc(vide)}</span>`;
+        }
+
+        function carteIntegration(p) {
+            const site = p.site_url ? `<a href="${esc(p.site_url)}" target="_blank" rel="noopener noreferrer">${esc(p.site_url)}</a>` : '';
+            const meta = [site, p.contact ? esc(p.contact) : ''].filter(Boolean).join(' · ');
+            const cles = p.cles.length ? p.cles.map(k => {
+                const actif = k.statut === 'ACTIVE';
+                const tag = actif ? '<span class="tag ok">Active</span>' : k.statut === 'EXPIREE'
+                    ? '<span class="tag warn">Expirée</span>' : '<span class="tag no">Révoquée</span>';
+                return `<tr${actif ? '' : ' class="key-off"'}>
+                    <td><b>${esc(k.libelle || 'Sans libellé')}</b><small>par ${esc(k.cree_par || '—')}</small></td>
+                    <td class="mono nowrap">${esc(k.prefixe)}…</td>
+                    <td class="nowrap">${esc(dateCourte(k.created_at))}</td>
+                    <td class="nowrap">${k.expire_le ? esc(dateCourte(k.expire_le)) : 'Jamais'}</td>
+                    <td class="nowrap">${k.derniere_utilisation ? esc(dateJournal(k.derniere_utilisation)) : 'Jamais utilisée'}<small>${fmtNum(k.nb_utilisations)} appel${k.nb_utilisations > 1 ? 's' : ''}</small></td>
+                    <td>${tag}</td>
+                    <td>${k.statut === 'REVOQUEE' ? '' : `<button class="admin-action reject small" type="button" onclick="revoquerCle(${Number(p.id)}, ${Number(k.id)})">Révoquer</button>`}</td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="7" class="journal-none">Aucune clé : générez-en une pour autoriser les appels.</td></tr>';
+            const sensibles = p.champs.filter(c => CHAMPS_SENSIBLES.includes(c));
+            return `<article class="partner-card${p.actif ? '' : ' is-off'}">
+                <header class="partner-head">
+                    <div><h3>${esc(p.nom)}</h3>${meta ? `<p class="partner-meta">${meta}</p>` : ''}</div>
+                    <div class="partner-badges">
+                        <span class="tag ${p.actif ? 'ok' : 'no'}">${p.actif ? 'Actif' : 'Désactivé'}</span>
+                        <span class="tag ${p.permission === 'INSCRIPTION' ? 'warn' : 'info'}">${esc(PERMISSIONS_LIBELLES[p.permission] || p.permission)}</span>
+                    </div>
+                </header>
+                ${p.description ? `<p class="partner-desc">${esc(p.description)}</p>` : ''}
+                <dl class="partner-facts">
+                    <div><dt>Données transmises</dt><dd class="chips">${puces(p.champs.map(c => CHAMPS_LIBELLES[c] || c), '—')}${sensibles.length ? '<span class="sens-note">dont données sensibles</span>' : ''}</dd></div>
+                    <div><dt>Adresses IP autorisées</dt><dd class="chips">${puces(p.ips_autorisees, 'Toutes les adresses')}</dd></div>
+                    <div><dt>Quota</dt><dd>${p.limite_par_minute ? fmtNum(p.limite_par_minute) + ' appels par minute' : 'Illimité'}</dd></div>
+                    <div><dt>Créée</dt><dd>${esc(dateCourte(p.created_at))}${p.cree_par ? ' par ' + esc(p.cree_par) : ''}</dd></div>
+                </dl>
+                <div class="partner-stats">
+                    <div class="mini-stat"><b>${fmtNum(p.stats.appels_24h)}</b><span>appels sur 24 h</span></div>
+                    <div class="mini-stat"><b>${fmtNum(p.stats.echecs_24h)}</b><span>refus et échecs sur 24 h</span></div>
+                    <div class="mini-stat"><b>${fmtNum(p.stats.inscrits_marques)}</b><span>inscrits marqués</span></div>
+                    <div class="mini-stat"><b class="small-b">${p.stats.derniere_activite ? esc(dateJournal(p.stats.derniere_activite)) : '—'}</b><span>dernière activité</span></div>
+                </div>
+                <div class="scroll"><table class="journal-table keys-table">
+                    <caption class="sr-only">Clés d’API de ${esc(p.nom)}</caption>
+                    <thead><tr><th scope="col">Clé</th><th scope="col">Début</th><th scope="col">Créée le</th><th scope="col">Expire le</th><th scope="col">Dernière utilisation</th><th scope="col">État</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+                    <tbody>${cles}</tbody>
+                </table></div>
+                <div class="request-actions">
+                    <button class="admin-action" type="button" onclick="ouvrirNouvelleCle(${Number(p.id)})">Générer une clé</button>
+                    <button class="admin-action ghost" type="button" onclick="ouvrirFormulairePartenaire(${Number(p.id)})">Modifier</button>
+                    <button class="admin-action ghost" type="button" onclick="voirActiviteIntegration(${Number(p.id)})">Voir l’activité</button>
+                    <button class="admin-action ghost" type="button" onclick="basculerIntegration(${Number(p.id)})">${p.actif ? 'Désactiver' : 'Réactiver'}</button>
+                    <button class="admin-action reject" type="button" onclick="supprimerIntegration(${Number(p.id)})">Supprimer</button>
+                </div>
+            </article>`;
+        }
+
+        async function chargerIntegrations() {
+            const list = $('integrations-list');
+            try {
+                const response = await adminFetch('/api/admin_partenaires');
+                const data = await response.json();
+                if (!response.ok || data.status !== 'success') {
+                    throw new Error(data.message || 'Impossible de charger les intégrations.');
+                }
+                integrations.liste = data.data;
+                integrations.champsDispo = data.champs_disponibles;
+                integrations.champsDefaut = data.champs_par_defaut;
+                const actives = data.data.filter(p => p.actif).length;
+                const cles = data.data.reduce((n, p) => n + p.cles.filter(k => k.statut === 'ACTIVE').length, 0);
+                $('i-actives').textContent = fmtNum(actives);
+                $('i-cles').textContent = fmtNum(cles);
+                $('i-appels').textContent = fmtNum(data.data.reduce((n, p) => n + p.stats.appels_24h, 0));
+                $('i-echecs').textContent = fmtNum(data.data.reduce((n, p) => n + p.stats.echecs_24h, 0));
+                $('i-summary').textContent = data.data.length
+                    ? `${data.data.length} intégration${data.data.length > 1 ? 's' : ''} · ${actives} active${actives > 1 ? 's' : ''}`
+                    : 'Aucune intégration';
+                list.innerHTML = data.data.length
+                    ? data.data.map(carteIntegration).join('')
+                    : '<p class="journal-empty"><b>Aucune intégration</b>Créez-en une pour autoriser un site externe à vérifier des étudiants.</p>';
+            } catch (exception) {
+                list.innerHTML = `<p class="journal-empty"><b>Intégrations indisponibles</b>${esc(exception.message)}</p>`;
+            }
+        }
+
+        const trouverIntegration = id => integrations.liste.find(p => p.id === id);
+
+        function fermerDialogue(dialog) { if (dialog.open) dialog.close(); }
+        document.querySelectorAll('dialog.upb-dialog').forEach(dialog => {
+            dialog.addEventListener('click', event => {
+                if (event.target === dialog || event.target.closest('[data-close]')) fermerDialogue(dialog);
+            });
+        });
+
+        function construireChoixChamps(selection) {
+            const rendu = (liste, cible) => {
+                $(cible).innerHTML = liste.map(champ => `<label class="check"><input type="checkbox" value="${esc(champ)}"
+                    ${selection.includes(champ) || champ === 'matricule' ? 'checked' : ''} ${champ === 'matricule' ? 'disabled' : ''}>
+                    <span>${esc(CHAMPS_LIBELLES[champ] || champ)}</span></label>`).join('');
+            };
+            const dispo = integrations.champsDispo.length ? integrations.champsDispo : Object.keys(CHAMPS_LIBELLES);
+            rendu(dispo.filter(c => !CHAMPS_SENSIBLES.includes(c)), 'p-champs-base');
+            rendu(dispo.filter(c => CHAMPS_SENSIBLES.includes(c)), 'p-champs-sensibles');
+        }
+
+        function ouvrirFormulairePartenaire(id) {
+            const p = id ? trouverIntegration(id) : null;
+            integrations.edition = p;
+            const dialog = $('partner-dialog');
+            $('partner-form').reset();
+            $('partner-error').hidden = true;
+            $('partner-dialog-title').textContent = p ? 'Modifier l’intégration' : 'Nouvelle intégration';
+            $('partner-submit').textContent = p ? 'Enregistrer' : 'Créer et générer la clé';
+            dialog.classList.toggle('is-edit', !!p);
+            $('p-nom').disabled = !!p;
+            $('p-nom-note').hidden = !!p;
+            construireChoixChamps(p ? p.champs : integrations.champsDefaut);
+            if (p) {
+                $('p-nom').value = p.nom;
+                $('p-site').value = p.site_url || '';
+                $('p-contact').value = p.contact || '';
+                $('p-desc').value = p.description || '';
+                $('p-ips').value = p.ips_autorisees.join('\n');
+                $('p-limite').value = p.limite_par_minute || '';
+                document.querySelector(`input[name="p-permission"][value="${p.permission}"]`).checked = true;
+            }
+            dialog.showModal();
+            (p ? $('p-site') : $('p-nom')).focus();
+        }
+
+        function lireFormulairePartenaire() {
+            const champs = Array.from(document.querySelectorAll('#p-champs-base input:checked, #p-champs-sensibles input:checked')).map(i => i.value);
+            const donnees = {
+                description: $('p-desc').value.trim(), site_url: $('p-site').value.trim(), contact: $('p-contact').value.trim(),
+                permission: document.querySelector('input[name="p-permission"]:checked').value,
+                champs,
+                ips_autorisees: $('p-ips').value.split(/[\s,;]+/).filter(Boolean),
+                limite_par_minute: $('p-limite').value ? Number($('p-limite').value) : null
+            };
+            if (!integrations.edition) {
+                donnees.nom = $('p-nom').value.trim();
+                donnees.libelle_cle = $('p-cle-libelle').value.trim();
+                if ($('p-cle-expire').value) donnees.expire_le = $('p-cle-expire').value;
+            }
+            return donnees;
+        }
+
+        async function envoyerAdmin(url, donnees) {
+            const response = await adminFetch(url, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(donnees)
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Opération impossible.');
+            return data;
+        }
+
+        $('partner-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            const bouton = $('partner-submit');
+            const erreur = $('partner-error');
+            erreur.hidden = true;
+            bouton.disabled = true;
+            try {
+                const donnees = lireFormulairePartenaire();
+                if (integrations.edition) {
+                    await envoyerAdmin('/api/admin_partenaires/modifier', { id: integrations.edition.id, ...donnees });
+                    fermerDialogue($('partner-dialog'));
+                    toast('Intégration mise à jour', 'success');
+                } else {
+                    const data = await envoyerAdmin('/api/admin_partenaires', donnees);
+                    fermerDialogue($('partner-dialog'));
+                    afficherCle(data.cle, data.partenaire.nom);
+                }
+                await chargerIntegrations();
+            } catch (exception) {
+                erreur.textContent = exception.message;
+                erreur.hidden = false;
+            } finally {
+                bouton.disabled = false;
+            }
+        });
+
+        function ouvrirNouvelleCle(id) {
+            const p = trouverIntegration(id);
+            if (!p) return;
+            integrations.cleCible = p;
+            $('newkey-form').reset();
+            $('newkey-error').hidden = true;
+            $('newkey-lead').textContent = `Nouvelle clé d’API pour « ${p.nom} ».`;
+            $('newkey-dialog').showModal();
+            $('nk-libelle').focus();
+        }
+
+        $('newkey-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            const bouton = $('newkey-submit');
+            bouton.disabled = true;
+            $('newkey-error').hidden = true;
+            try {
+                const donnees = { id: integrations.cleCible.id, action: 'generer', libelle: $('nk-libelle').value.trim() };
+                if ($('nk-expire').value) donnees.expire_le = $('nk-expire').value;
+                const data = await envoyerAdmin('/api/admin_partenaires/cles', donnees);
+                fermerDialogue($('newkey-dialog'));
+                afficherCle(data.cle, data.partenaire.nom);
+                await chargerIntegrations();
+            } catch (exception) {
+                $('newkey-error').textContent = exception.message;
+                $('newkey-error').hidden = false;
+            } finally {
+                bouton.disabled = false;
+            }
+        });
+
+        function afficherCle(cle, nom) {
+            $('secret-lead').textContent = `Intégration « ${nom} »${cle.libelle ? ' · ' + cle.libelle : ''}${cle.expire_le ? ' · expire le ' + dateCourte(cle.expire_le) : ''}`;
+            $('secret-value').textContent = cle.valeur;
+            $('secret-copy').textContent = 'Copier';
+            $('secret-example').textContent =
+                `curl -X POST ${location.origin}/api/partenaire/verifier \\\n  -H "X-API-Key: ${cle.valeur}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"matricule":"KOUA1703980001"}'`;
+            $('secret-dialog').showModal();
+        }
+
+        $('secret-copy').addEventListener('click', async () => {
+            const valeur = $('secret-value').textContent;
+            try {
+                await navigator.clipboard.writeText(valeur);
+                $('secret-copy').textContent = 'Copiée ✓';
+            } catch (exception) {
+                const plage = document.createRange();
+                plage.selectNodeContents($('secret-value'));
+                const selection = getSelection();
+                selection.removeAllRanges();
+                selection.addRange(plage);
+                $('secret-copy').textContent = 'Sélectionnée : Ctrl+C';
+            }
+        });
+        // La valeur de la clé ne doit pas rester dans la page une fois la fenêtre fermée
+        $('secret-dialog').addEventListener('close', () => {
+            $('secret-value').textContent = '';
+            $('secret-example').textContent = '';
+        });
+
+        async function revoquerCle(id, cleId) {
+            const p = trouverIntegration(id);
+            const cle = p && p.cles.find(k => k.id === cleId);
+            if (!cle || !confirm(`Révoquer la clé « ${cle.libelle || cle.prefixe} » de ${p.nom} ?\nElle cessera immédiatement de fonctionner (action irréversible).`)) return;
+            try {
+                const data = await envoyerAdmin('/api/admin_partenaires/cles', { id, action: 'revoquer', cle_id: cleId });
+                toast(data.message, 'success');
+                await chargerIntegrations();
+            } catch (exception) { toast(exception.message, 'error'); }
+        }
+
+        async function basculerIntegration(id) {
+            const p = trouverIntegration(id);
+            if (!p) return;
+            const texte = p.actif
+                ? `Désactiver « ${p.nom} » ?\nToutes ses clés sont refusées immédiatement ; vous pourrez la réactiver.`
+                : `Réactiver « ${p.nom} » ?\nSes clés non révoquées refonctionneront.`;
+            if (!confirm(texte)) return;
+            try {
+                await envoyerAdmin('/api/admin_partenaires/modifier', { id, actif: !p.actif });
+                toast(p.actif ? 'Intégration désactivée' : 'Intégration réactivée', 'success');
+                await chargerIntegrations();
+            } catch (exception) { toast(exception.message, 'error'); }
+        }
+
+        async function supprimerIntegration(id) {
+            const p = trouverIntegration(id);
+            if (!p || !confirm(`Supprimer définitivement « ${p.nom} » et toutes ses clés ?\nCette action est irréversible (son historique reste dans le journal). Pour une coupure réversible, désactivez-la plutôt.`)) return;
+            try {
+                await envoyerAdmin('/api/admin_partenaires/supprimer', { id });
+                toast('Intégration supprimée', 'success');
+                await chargerIntegrations();
+            } catch (exception) { toast(exception.message, 'error'); }
+        }
+
+        function voirActiviteIntegration(id) {
+            const p = trouverIntegration(id);
+            if (!p) return;
+            $('journal-filters').reset();
+            $('j-q').value = p.nom;
+            $('j-acteur').value = 'PARTENAIRE';
+            filtrerJournal();
+            $('journal').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        window.ouvrirFormulairePartenaire = ouvrirFormulairePartenaire;
+        window.ouvrirNouvelleCle = ouvrirNouvelleCle;
+        window.revoquerCle = revoquerCle;
+        window.basculerIntegration = basculerIntegration;
+        window.supprimerIntegration = supprimerIntegration;
+        window.voirActiviteIntegration = voirActiviteIntegration;
+        $('i-new').addEventListener('click', () => ouvrirFormulairePartenaire(null));
+        $('p-champs-min').addEventListener('click', () => {
+            document.querySelectorAll('#p-champs-base input:not(:disabled), #p-champs-sensibles input:not(:disabled)')
+                .forEach(input => { input.checked = false; });
+        });
+        $('i-refresh').addEventListener('click', chargerIntegrations);
+        $('i-endpoint').textContent = 'POST ' + location.origin + '/api/partenaire/verifier';
+
         function boot() {
             $('datePointage').value = pointageDate;
             $('pointageDateLabel').textContent = fmtLongDate(parseDateLocal(pointageDate));
@@ -2622,6 +3189,7 @@
             chargerDemandes();
             chargerCreations();
             chargerJournal();
+            chargerIntegrations();
         }
 
         if (sessionStorage.getItem('upbSessionExpired')) {

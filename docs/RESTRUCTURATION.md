@@ -325,3 +325,54 @@ Traçabilité de toutes les actions menées sur et à travers le système.
   données personnelles.
 - Limites : pas de purge automatique ; derrière un proxy, l'IP est celle du proxy ; une
   base injoignable pendant l'écriture fait perdre l'événement (consigné dans les logs).
+
+## Étape 13 — Gestion des intégrations (sites externes)
+
+Page d'administration (onglet **Intégrations**) pour gérer de bout en bout les sites externes qui
+vérifient des étudiants avec notre API.
+
+- `migrations/08_integrations.sql` : la fiche `partenaire` reçoit `permission` (VERIFICATION /
+  INSCRIPTION), `champs` (données transmises), `ips_autorisees`, `limite_par_minute`, `description`,
+  `site_url`, `contact` ; nouvelle table `partenaire_cle` (plusieurs clés par partenaire, préfixe
+  affichable, expiration, révocation, dernière utilisation, compteur). Les partenaires existants
+  conservent leur comportement (permission INSCRIPTION, toutes les données) et leur clé est reprise.
+- `app/auth.py` : `require_partner` contrôle dans l'ordre clé connue, non révoquée, non expirée,
+  partenaire actif, IP autorisée, quota par minute (`security.RateLimiter`). Le motif précis du
+  refus n'est donné qu'au journal ; l'appelant reçoit 401 générique (403 IP, 429 quota).
+- `POST /api/partenaire/verifier` : **le matricule suffit** ; réponse `verifie`, `data` limitée aux
+  champs autorisés (le matricule seul est possible), `inscription` (`null` sans permission
+  d'inscription). Facultatif : `nom`, `prenoms`, `date_naissance` renvoient une `correspondance`
+  champ par champ sans révéler les valeurs. `numero_candidat` sans permission d'inscription : 403.
+- `routes/partners.py` : `GET/POST /api/admin_partenaires`, `/modifier`, `/cles` (générer / révoquer),
+  `/supprimer`. La valeur d'une clé n'est renvoyée qu'à la création/génération ; seule son empreinte
+  SHA-256 est stockée ; maximum 10 clés actives ; le nom est immuable (il identifie l'intégration
+  dans le journal). Statistiques par intégration tirées du journal d'activité.
+- Journal : nouvelles actions `PARTENAIRE_CREE / MODIFIE / ACTIVE / DESACTIVE / CLE_GENEREE /
+  CLE_REVOQUEE / SUPPRIME` et `VERIFICATION_PARTENAIRE` ; aucune clé n'y figure (testé).
+- `admin.html` : onglet Intégrations (synthèse, cartes par intégration avec autorisations, activité
+  et tableau des clés), fenêtres de création/modification, de nouvelle clé et d'affichage unique de
+  la clé (copie, exemple d'appel), bouton « Matricule seul », lien vers l'activité dans le journal.
+- `scripts/create_partner.py` : conservé pour le dépannage, adapté aux nouvelles tables.
+- `docs/GUIDE_INTEGRATION.md` réécrit autour de la route à clé : vérification par le seul matricule,
+  correspondance facultative, permissions, codes, exemples, rotation des clés.
+- Tests : `tests/test_partners.py` (création, validations, permissions, champs, IP, quota, rotation,
+  expiration, révocation, désactivation, suppression, matricule seul, correspondance, journal).
+
+## Étape 14 — Préparation au déploiement (Netlify + Render + UptimeRobot)
+
+Guide : `docs/GUIDE_DEPLOIEMENT.md` (sans `netlify.toml` ni `render.yaml`, tout se règle dans les tableaux de bord).
+Trois adaptations du code, nécessaires parce que pages et API sont désormais sur deux hôtes :
+
+- **URL de l'API configurable** : `frontend/config.js` (`window.UPB_API_URL`, vide = même hôte, donc le
+  développement local est inchangé) ; `index.html`, `admin.html` et `scanner.html` préfixent leurs appels
+  `/api/…` avec cette URL. Test : plus aucun `fetch('/api…')` direct.
+- **CORS restreignable** : variable `UPB_CORS_ORIGINS` (liste d'origines, vide = toutes).
+- **Adresse IP derrière proxy** (`app/netinfo.py`, `UPB_TRUSTED_PROXY_HOPS`) : l'en-tête
+  `X-Forwarded-For` est lu depuis la **droite** (les entrées ajoutées par nos proxys), pas depuis le début
+  que le client peut falsifier. Utilisée par le journal, la limitation des essais de connexion (sans cela,
+  tous les visiteurs partageraient l'IP du proxy, donc un blocage commun) et la liste d'IP des intégrations.
+- **Point de santé** `GET|HEAD /api/sante` pour UptimeRobot : sans authentification, hors documentation,
+  **sans accès à la base** (Neon peut se mettre en veille) ; `?base=1` vérifie aussi la base (diagnostic).
+- Vérifié : dépendances installées et 42 tests hors base réussis sous **Python 3.12.10** (version conseillée
+  pour Render) ; démarrage avec la commande Render (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`),
+  GET et HEAD sur `/api/sante`, CORS (origine autorisée / refusée) et lecture de l'IP via `X-Forwarded-For`.

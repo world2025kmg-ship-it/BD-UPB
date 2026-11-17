@@ -87,11 +87,13 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="genie-fx.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
         const { say, mood, jump, confetti, esc } = GFX;
         const $ = id => document.getElementById(id);
+        const API = (window.UPB_API_URL || '').replace(/\/+$/, '');
 
         let html5Qrcode = null;
         let scanning = false;
@@ -132,7 +134,7 @@
                     showResult('err', '-', 'Connectez-vous comme administrateur depuis le panneau Admin avant d’utiliser le scanner.');
                     return;
                 }
-                const auth = await fetch('/api/admin_auth_check', {
+                const auth = await fetch(API + '/api/admin_auth_check', {
                     method: 'POST',
                     headers: { Authorization: 'Bearer ' + token }
                 });
@@ -195,7 +197,7 @@
             if (scanning) { try { html5Qrcode.pause(); } catch(e) {} }
 
             try {
-                const res = await fetch('/api/pointage', {
+                const res = await fetch(API + '/api/pointage', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json; charset=UTF-8',

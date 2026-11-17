@@ -125,13 +125,16 @@ def test_full_flow(client):
         ).status_code == 400
         # Une clé désactivée est refusée
         with psycopg.connect(config.database_url(), prepare_threshold=None) as conn:
-            conn.execute("UPDATE partenaire SET actif = FALSE WHERE cle_hash = %s", (hash_api_key(key),))
+            conn.execute("UPDATE partenaire SET actif = FALSE WHERE nom = 'ZZTsite-officiel'")
             conn.commit()
         assert anonymous.post(
             "/api/partenaire/verifier", json={"matricule": MATRICULE_ALICE}, headers=headers
         ).status_code == 401
     # L'étudiant apparaît inscrit côté admin, avec les statistiques
-    after = client.get("/api/get_etudiants", params={"q": MATRICULE_ALICE}).json()
+    for _ in range(3):  # les statistiques se dégradent (à 0) si Neon coupe une connexion : on retente
+        after = client.get("/api/get_etudiants", params={"q": MATRICULE_ALICE}).json()
+        if after["stats"]["total"]:
+            break
     assert after["data"][0]["numero_candidat"] == numero
     assert after["stats"]["inscrits"] >= 2
     # Plus de route publique d'inscription
@@ -269,7 +272,14 @@ def test_creation_request_can_be_rejected(client):
 def make_partner():
     key = generate_api_key()
     with psycopg.connect(config.database_url(), prepare_threshold=None) as conn:
-        conn.execute("INSERT INTO partenaire (nom, cle_hash) VALUES ('ZZTsite-officiel', %s)", (hash_api_key(key),))
+        pid = conn.execute(
+            "INSERT INTO partenaire (nom, permission, champs) VALUES ('ZZTsite-officiel', 'INSCRIPTION', %s::jsonb) RETURNING id",
+            ('["matricule","nom","prenoms","date_naissance","filiere","niveau","sexe","email","telephone","allergies_affection"]',),
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO partenaire_cle (partenaire_id, prefixe, cle_hash) VALUES (%s, %s, %s)",
+            (pid, key[:12], hash_api_key(key)),
+        )
         conn.commit()
     return key
 

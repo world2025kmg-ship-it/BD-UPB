@@ -59,7 +59,7 @@ def admin_login(request: Request, body: Any = Depends(json_body), db: Database =
     identifiant = identifiant.strip()
     audit.set_actor("ADMIN", identifiant)  # identifiant présenté (même en cas d'échec)
 
-    client = request.client.host if request.client else "inconnu"
+    client = (audit.context.get() or {}).get("ip") or "inconnu"
     keys = (f"ip:{client}", f"id:{identifiant.lower()}")
     wait = security.login_throttle.retry_after(*keys)
     if wait:

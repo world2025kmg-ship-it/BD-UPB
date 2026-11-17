@@ -1,5 +1,6 @@
 """Application FastAPI : API JSON (/api/...) + service du frontend statique."""
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from . import audit, config, db
+from .netinfo import client_ip
 from .docs_access import register_docs_routes
 from .errors import UpbJSONResponse, register_error_handlers
 from .routes import register_routers
@@ -45,6 +47,7 @@ TAGS = [
     {"name": "Portail étudiant", "description": "Routes publiques (sans jeton)."},
     {"name": "Administration", "description": "Routes réservées aux administrateurs (jeton Bearer)."},
     {"name": "Journal", "description": "Journal d'activité : traçabilité des actions (jeton Bearer)."},
+    {"name": "Intégrations", "description": "Gestion des sites externes : autorisations et clés d'API (jeton Bearer)."},
     {"name": "Partenaires", "description": "Sites partenaires autorisés (clé d'API `X-API-Key`)."},
     {"name": "Pointage", "description": "Présences quotidiennes par QR code (jeton Bearer)."},
 ]
@@ -58,6 +61,13 @@ async def lifespan(_app: FastAPI):
         logger.exception("Pool de connexions non ouvert (DATABASE_URL manquant ?)")
     yield
     db.close_pool()
+
+
+def cors_origins() -> list[str]:
+    """Origines autorisées à appeler l'API depuis un navigateur (UPB_CORS_ORIGINS, séparées par des
+    virgules, ex. https://mon-site.netlify.app). Vide = toutes les origines (développement)."""
+    origins = [o.strip().rstrip("/") for o in os.getenv("UPB_CORS_ORIGINS", "").split(",") if o.strip()]
+    return origins or ["*"]
 
 
 def create_app() -> FastAPI:
@@ -75,7 +85,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins(),
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     )
@@ -91,7 +101,7 @@ def create_app() -> FastAPI:
     async def audit_trail(request: Request, call_next):
         """Contexte d'audit de la requête ; journalise l'événement une fois la réponse produite."""
         token = audit.begin(
-            request.client.host if request.client else None,
+            client_ip(request),
             request.headers.get("user-agent"),
             request.method,
             request.url.path,
@@ -103,6 +113,19 @@ def create_app() -> FastAPI:
             return response
         finally:
             audit.end(token)
+
+    @app.api_route("/api/sante", methods=["GET", "HEAD"], include_in_schema=False)
+    def health(base: bool = False):
+        """Point de santé pour la supervision (UptimeRobot). Sans paramètre, il ne touche PAS la base :
+        la supervision peut ainsi tourner sans empêcher Neon de se mettre en veille.
+        `?base=1` vérifie aussi la connexion à la base (diagnostic manuel)."""
+        if base:
+            try:
+                with db.audit_connection() as connection:
+                    connection.execute("SELECT 1")
+            except Exception:  # noqa: BLE001
+                return UpbJSONResponse({"status": "error", "message": "Base de données injoignable."}, status_code=503)
+        return UpbJSONResponse({"status": "ok"})
 
     register_error_handlers(app)
     register_routers(app)

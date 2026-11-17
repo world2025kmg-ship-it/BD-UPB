@@ -882,8 +882,8 @@
         "tags": [
           "Partenaires"
         ],
-        "summary": "Vérifier un étudiant et le marquer inscrit au concours",
-        "description": "Réservé au site officiel d'inscription (en-tête `X-API-Key`). Retrouve l'étudiant par son matricule, **le marque inscrit au concours** s'il ne l'est pas encore, et renvoie son identité. L'appel est idempotent : répéter la requête ne crée pas de doublon et renvoie le numéro de candidat existant. Si `numero_candidat` est fourni et que l'étudiant n'est pas encore inscrit, ce numéro est enregistré ; sinon un numéro `GENIE-2026-XXXXX` est généré.",
+        "summary": "Vérifier un étudiant (et l'inscrire au concours si la clé y est autorisée)",
+        "description": "Réservé aux sites partenaires autorisés (en-tête `X-API-Key`). **Le matricule suffit** : le site n'a pas à demander d'autres informations à l'utilisateur. `verifie: true` confirme que le matricule existe (`404` sinon). La réponse renvoie l'identité de l'étudiant, **limitée aux champs autorisés pour ce partenaire** (un partenaire peut être limité au seul matricule).\n\nFacultatif : si le site a tout de même collecté `nom`, `prenoms` et/ou `date_naissance`, il peut les envoyer ; `correspondance` indique pour chacun s'il correspond au dossier, **sans révéler les valeurs** (utile pour confirmer une identité sans recevoir ces données).\n\n* Permission **VERIFICATION** : lecture seule. `inscription` indique si l'étudiant est déjà inscrit au concours (`null` sinon). Aucun marquage n'est effectué.\n* Permission **INSCRIPTION** : l'étudiant est **marqué inscrit au concours** s'il ne l'est pas encore. L'appel est idempotent. Si `numero_candidat` est fourni, il est enregistré à la première inscription ; sinon un numéro `GENIE-2026-XXXXX` est généré.\n\nErreurs d'accès : `401` clé absente, inconnue, révoquée, expirée ou partenaire désactivé ; `403` adresse IP non autorisée, ou `numero_candidat` fourni sans permission INSCRIPTION ; `429` quota d'appels par minute dépassé.",
         "operationId": "partner_verify_api_partenaire_verifier_post",
         "requestBody": {
           "description": "Matricule et numéro de candidat facultatif.",
@@ -911,6 +911,42 @@
                     ],
                     "title": "Numero Candidat",
                     "description": "Numéro de candidat attribué par le site d'inscription ; enregistré à la première inscription (un numéro est généré s'il est absent)."
+                  },
+                  "nom": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Nom",
+                    "description": "Facultatif : nom saisi par l'utilisateur, à comparer au dossier."
+                  },
+                  "prenoms": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Prenoms",
+                    "description": "Facultatif : prénoms saisis, à comparer au dossier."
+                  },
+                  "date_naissance": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Date Naissance",
+                    "description": "Facultatif : date de naissance saisie (`AAAA-MM-JJ` ou `JJ/MM/AAAA`), à comparer au dossier."
                   }
                 },
                 "type": "object",
@@ -925,7 +961,7 @@
         },
         "responses": {
           "200": {
-            "description": "Étudiant vérifié et inscrit.",
+            "description": "Étudiant vérifié.",
             "content": {
               "application/json": {
                 "schema": {
@@ -954,8 +990,28 @@
               }
             }
           },
+          "403": {
+            "description": "Accès refusé (adresse IP non autorisée, ou action non permise pour cette clé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota d'appels par minute dépassé.",
             "content": {
               "application/json": {
                 "schema": {
@@ -978,6 +1034,740 @@
         "security": [
           {
             "PartnerApiKey": []
+          }
+        ]
+      }
+    },
+    "/api/admin_partenaires": {
+      "get": {
+        "tags": [
+          "Intégrations"
+        ],
+        "summary": "Lister les intégrations (sites externes)",
+        "description": "Chaque intégration avec ses autorisations, ses clés (sans jamais la valeur de la clé) et son activité (appels, échecs, inscriptions marquées).",
+        "operationId": "list_partners_api_admin_partenaires_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnersListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Intégrations"
+        ],
+        "summary": "Créer une intégration et générer sa première clé d'API",
+        "description": "La clé (`cle.valeur`) n'est renvoyée qu'une seule fois : elle ne pourra plus être consultée, seulement remplacée par une nouvelle clé.",
+        "operationId": "create_partner_api_admin_partenaires_post",
+        "requestBody": {
+          "description": "Fiche de l'intégration.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "nom": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "minLength": 3,
+                    "title": "Nom",
+                    "examples": [
+                      "Site officiel concours"
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Description"
+                  },
+                  "site_url": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Site Url",
+                    "examples": [
+                      "https://inscription.exemple.ci"
+                    ]
+                  },
+                  "contact": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Contact",
+                    "examples": [
+                      "technique@exemple.ci"
+                    ]
+                  },
+                  "permission": {
+                    "type": "string",
+                    "enum": [
+                      "VERIFICATION",
+                      "INSCRIPTION"
+                    ],
+                    "title": "Permission",
+                    "description": "VERIFICATION : lecture seule. INSCRIPTION : marque aussi l'étudiant inscrit.",
+                    "default": "VERIFICATION"
+                  },
+                  "champs": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Champs",
+                    "description": "Données autorisées ; par défaut l'identité seule."
+                  },
+                  "ips_autorisees": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Ips Autorisees",
+                    "examples": [
+                      [
+                        "203.0.113.10",
+                        "198.51.100.0/24"
+                      ]
+                    ]
+                  },
+                  "limite_par_minute": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "maximum": 100000.0,
+                        "minimum": 1.0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Limite Par Minute"
+                  },
+                  "libelle_cle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Libelle Cle",
+                    "examples": [
+                      "Production"
+                    ]
+                  },
+                  "expire_le": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Expire Le",
+                    "description": "Expiration de la première clé (`AAAA-MM-JJ`)."
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "nom"
+                ],
+                "title": "PartnerCreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerCreatedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflit (déjà existant).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin_partenaires/modifier": {
+      "post": {
+        "tags": [
+          "Intégrations"
+        ],
+        "summary": "Modifier les autorisations d'une intégration, l'activer ou la désactiver",
+        "description": "Seuls les champs présents sont modifiés. Le nom n'est pas modifiable (il identifie l'intégration dans le journal d'activité). `actif: false` coupe immédiatement toutes ses clés.",
+        "operationId": "update_partner_api_admin_partenaires_modifier_post",
+        "requestBody": {
+          "description": "Identifiant et champs à modifier.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1.0,
+                    "title": "Id"
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Description"
+                  },
+                  "site_url": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Site Url"
+                  },
+                  "contact": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Contact"
+                  },
+                  "permission": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "VERIFICATION",
+                          "INSCRIPTION"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Permission"
+                  },
+                  "champs": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Champs"
+                  },
+                  "ips_autorisees": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Ips Autorisees"
+                  },
+                  "limite_par_minute": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Limite Par Minute"
+                  },
+                  "actif": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Actif"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "title": "PartnerUpdateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin_partenaires/cles": {
+      "post": {
+        "tags": [
+          "Intégrations"
+        ],
+        "summary": "Générer une nouvelle clé d'API ou révoquer une clé",
+        "description": "`generer` crée une clé supplémentaire (rotation sans coupure : l'ancienne reste valide jusqu'à sa révocation ; 10 clés actives au maximum) et renvoie sa valeur **une seule fois**. `revoquer` désactive définitivement la clé `cle_id`.",
+        "operationId": "manage_partner_key_api_admin_partenaires_cles_post",
+        "requestBody": {
+          "description": "Intégration et action.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1.0,
+                    "title": "Id",
+                    "description": "Identifiant de l'intégration."
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "generer",
+                      "revoquer"
+                    ],
+                    "title": "Action"
+                  },
+                  "cle_id": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1.0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Cle Id",
+                    "description": "Clé à révoquer (action `revoquer`)."
+                  },
+                  "libelle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Libelle",
+                    "description": "Libellé de la nouvelle clé."
+                  },
+                  "expire_le": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Expire Le",
+                    "description": "Expiration de la nouvelle clé (`AAAA-MM-JJ`)."
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id",
+                  "action"
+                ],
+                "title": "PartnerKeyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerKeyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin_partenaires/supprimer": {
+      "post": {
+        "tags": [
+          "Intégrations"
+        ],
+        "summary": "Supprimer une intégration et toutes ses clés",
+        "description": "Irréversible. L'historique de ses appels reste dans le journal d'activité. Pour une coupure réversible, désactiver l'intégration plutôt que la supprimer.",
+        "operationId": "delete_partner_api_admin_partenaires_supprimer_post",
+        "requestBody": {
+          "description": "Identifiant de l'intégration.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1.0,
+                    "title": "Id"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "title": "PartnerIdBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Jeton administrateur absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation métier échouée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur ou base de données.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Jeton administrateur non configuré côté serveur.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminBearer": []
           }
         ]
       }
@@ -3429,6 +4219,331 @@
         ],
         "title": "ModificationsListResponse"
       },
+      "Partner": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "nom": {
+            "type": "string",
+            "title": "Nom",
+            "examples": [
+              "Site officiel concours"
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "site_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Url",
+            "examples": [
+              "https://inscription.exemple.ci"
+            ]
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact"
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "VERIFICATION",
+              "INSCRIPTION"
+            ],
+            "title": "Permission"
+          },
+          "champs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Champs",
+            "description": "Données de l'étudiant que l'intégration reçoit."
+          },
+          "ips_autorisees": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ips Autorisees",
+            "description": "Adresses IP / réseaux CIDR autorisés ; vide = toutes."
+          },
+          "limite_par_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limite Par Minute",
+            "description": "Quota d'appels par minute ; `null` = illimité."
+          },
+          "actif": {
+            "type": "boolean",
+            "title": "Actif"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "derniere_utilisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derniere Utilisation"
+          },
+          "cree_par": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cree Par"
+          },
+          "cles": {
+            "items": {
+              "$ref": "#/components/schemas/PartnerKeyInfo"
+            },
+            "type": "array",
+            "title": "Cles"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/PartnerStats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nom",
+          "description",
+          "site_url",
+          "contact",
+          "permission",
+          "champs",
+          "ips_autorisees",
+          "limite_par_minute",
+          "actif",
+          "created_at",
+          "updated_at",
+          "derniere_utilisation",
+          "cree_par",
+          "cles",
+          "stats"
+        ],
+        "title": "Partner"
+      },
+      "PartnerCreatedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "partenaire": {
+            "$ref": "#/components/schemas/Partner"
+          },
+          "cle": {
+            "$ref": "#/components/schemas/PartnerSecretKey"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "partenaire",
+          "cle"
+        ],
+        "title": "PartnerCreatedResponse"
+      },
+      "PartnerKeyInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "prefixe": {
+            "type": "string",
+            "title": "Prefixe",
+            "description": "Début de la clé, pour l'identifier (jamais la clé entière).",
+            "examples": [
+              "upb_AbCdEf12"
+            ]
+          },
+          "libelle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Libelle",
+            "examples": [
+              "Production"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "cree_par": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cree Par"
+          },
+          "expire_le": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expire Le",
+            "description": "`AAAA-MM-JJ` ; `null` = n'expire pas."
+          },
+          "revoquee_le": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoquee Le"
+          },
+          "derniere_utilisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derniere Utilisation"
+          },
+          "nb_utilisations": {
+            "type": "integer",
+            "title": "Nb Utilisations"
+          },
+          "statut": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "REVOQUEE",
+              "EXPIREE"
+            ],
+            "title": "Statut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "prefixe",
+          "libelle",
+          "created_at",
+          "cree_par",
+          "expire_le",
+          "revoquee_le",
+          "derniere_utilisation",
+          "nb_utilisations",
+          "statut"
+        ],
+        "title": "PartnerKeyInfo"
+      },
+      "PartnerKeyResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "partenaire": {
+            "$ref": "#/components/schemas/Partner"
+          },
+          "cle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PartnerSecretKey"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Présent uniquement après `generer`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "partenaire"
+        ],
+        "title": "PartnerKeyResponse"
+      },
       "PartnerRegistration": {
         "properties": {
           "numero_candidat": {
@@ -3459,6 +4574,121 @@
         ],
         "title": "PartnerRegistration"
       },
+      "PartnerResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "partenaire": {
+            "$ref": "#/components/schemas/Partner"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "partenaire"
+        ],
+        "title": "PartnerResponse"
+      },
+      "PartnerSecretKey": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "prefixe": {
+            "type": "string",
+            "title": "Prefixe"
+          },
+          "libelle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Libelle"
+          },
+          "expire_le": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expire Le"
+          },
+          "valeur": {
+            "type": "string",
+            "title": "Valeur",
+            "description": "LA CLÉ. Affichée une seule fois : à copier immédiatement.",
+            "examples": [
+              "upb_xxxxxxxx…"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "prefixe",
+          "libelle",
+          "expire_le",
+          "valeur"
+        ],
+        "title": "PartnerSecretKey"
+      },
+      "PartnerStats": {
+        "properties": {
+          "appels_total": {
+            "type": "integer",
+            "title": "Appels Total"
+          },
+          "appels_24h": {
+            "type": "integer",
+            "title": "Appels 24H"
+          },
+          "echecs_24h": {
+            "type": "integer",
+            "title": "Echecs 24H"
+          },
+          "inscrits_marques": {
+            "type": "integer",
+            "title": "Inscrits Marques",
+            "description": "Étudiants marqués inscrits par cette intégration."
+          },
+          "derniere_activite": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derniere Activite"
+          }
+        },
+        "type": "object",
+        "required": [
+          "appels_total",
+          "appels_24h",
+          "echecs_24h",
+          "inscrits_marques",
+          "derniere_activite"
+        ],
+        "title": "PartnerStats"
+      },
       "PartnerVerifyResponse": {
         "properties": {
           "status": {
@@ -3471,20 +4701,97 @@
             "type": "string",
             "title": "Message"
           },
+          "verifie": {
+            "type": "boolean",
+            "title": "Verifie",
+            "description": "`true` : le matricule existe dans la base UPB."
+          },
+          "correspondance": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correspondance",
+            "description": "Présent si `nom`, `prenoms` ou `date_naissance` ont été envoyés : pour chacun, `true` s'il correspond au dossier (les valeurs du dossier ne sont pas révélées).",
+            "examples": [
+              {
+                "date_naissance": false,
+                "nom": true
+              }
+            ]
+          },
           "data": {
-            "$ref": "#/components/schemas/StudentRecord"
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data",
+            "description": "Données de l'étudiant, limitées aux champs autorisés pour ce partenaire (`matricule`, `nom`, `prenoms`, `date_naissance`, `filiere`, `niveau`, et selon l'autorisation `sexe`, `email`, `telephone`, `allergies_affection`)."
           },
           "inscription": {
-            "$ref": "#/components/schemas/PartnerRegistration"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PartnerRegistration"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Inscription au concours ; `null` si l'étudiant n'est pas inscrit et que la clé n'a pas la permission INSCRIPTION."
           }
         },
         "type": "object",
         "required": [
           "message",
+          "verifie",
+          "correspondance",
           "data",
           "inscription"
         ],
         "title": "PartnerVerifyResponse"
+      },
+      "PartnersListResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "success",
+            "title": "Status",
+            "default": "success"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Partner"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "champs_disponibles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Champs Disponibles"
+          },
+          "champs_par_defaut": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Champs Par Defaut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "champs_disponibles",
+          "champs_par_defaut"
+        ],
+        "title": "PartnersListResponse"
       },
       "PendingCreation": {
         "properties": {
@@ -3901,6 +5208,10 @@
     {
       "name": "Journal",
       "description": "Journal d'activité : traçabilité des actions (jeton Bearer)."
+    },
+    {
+      "name": "Intégrations",
+      "description": "Gestion des sites externes : autorisations et clés d'API (jeton Bearer)."
     },
     {
       "name": "Partenaires",

@@ -29,7 +29,7 @@ def auth(token=TOKEN):
 def test_index_is_served(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert "Concours" in response.text
+    assert "Mon dossier" in response.text and "matricule" in response.text.lower()
 
 
 def test_frontend_pages_and_assets_are_served(client):
@@ -251,7 +251,7 @@ def test_creation_request_validation(client):
 def test_public_enrollment_route_is_removed(client):
     # L'inscription ne se fait plus depuis le portail : plus aucune route publique pour la créer.
     assert client.post("/api/inscrire", json={"matricule": "KOUA1703980001"}).status_code in (404, 405)
-    assert "inscrire" not in client.get("/openapi.json", auth=("x", DOCS_PASSWORD)).text
+    assert "/api/inscrire" not in client.get("/openapi.json", auth=("x", DOCS_PASSWORD)).text
 
 
 def test_portal_has_no_enrollment_button(client):
@@ -292,3 +292,69 @@ def test_admin_page_has_journal_tab(client):
 def test_audit_is_disabled_in_basic_tests(client):
     from app import audit
     assert audit.enabled() is False
+
+
+def test_admin_page_has_integrations_tab(client):
+    page = client.get("/admin.html").text
+    assert 'href="#integrations"' in page and 'id="integrations"' in page and "/api/admin_partenaires" in page
+    assert "Matricule seul" in page and "secret-dialog" in page
+    spec = client.get("/openapi.json", auth=("x", DOCS_PASSWORD)).text
+    for route in ("/api/admin_partenaires", "/api/admin_partenaires/modifier",
+                  "/api/admin_partenaires/cles", "/api/admin_partenaires/supprimer"):
+        assert route in spec, route
+    for route in ("/api/admin_partenaires", "/api/admin_partenaires/cles"):
+        assert client.get(route).status_code in (401, 405) or client.post(route, json={}).status_code == 401
+
+
+def test_health_endpoint_for_monitoring(client):
+    for method in ("get", "head"):
+        response = getattr(client, method)("/api/sante")
+        assert response.status_code == 200, method
+        assert response.headers["cache-control"] == "no-store"
+    assert client.get("/api/sante").json() == {"status": "ok"}
+    # La supervision n'exige aucune authentification et n'est pas dans la documentation
+    assert "/api/sante" not in client.get("/openapi.json", auth=("x", DOCS_PASSWORD)).text
+
+
+def test_cors_can_be_restricted_to_the_frontend_origin(monkeypatch):
+    monkeypatch.setenv("UPB_CORS_ORIGINS", "https://mon-site.netlify.app/, https://autre.exemple.ci")
+    monkeypatch.setenv("UPB_SECRET_KEY", SECRET)
+    with TestClient(create_app()) as restricted:
+        ask = lambda origin: restricted.options(  # noqa: E731
+            "/api/verifier", headers={"Origin": origin, "Access-Control-Request-Method": "POST"})
+        allowed = ask("https://mon-site.netlify.app")
+        assert allowed.headers["access-control-allow-origin"] == "https://mon-site.netlify.app"
+        assert ask("https://autre.exemple.ci").headers["access-control-allow-origin"] == "https://autre.exemple.ci"
+        assert "access-control-allow-origin" not in ask("https://pirate.example").headers
+
+
+def test_client_ip_behind_proxies(monkeypatch):
+    from types import SimpleNamespace
+    from app.netinfo import client_ip
+
+    def request(forwarded=None, peer="10.0.0.1"):
+        headers = {"x-forwarded-for": forwarded} if forwarded else {}
+        return SimpleNamespace(client=SimpleNamespace(host=peer), headers=headers)
+
+    monkeypatch.delenv("UPB_TRUSTED_PROXY_HOPS", raising=False)
+    assert client_ip(request("1.2.3.4")) == "10.0.0.1"  # sans proxy déclaré : adresse de connexion
+    monkeypatch.setenv("UPB_TRUSTED_PROXY_HOPS", "1")
+    assert client_ip(request("203.0.113.9")) == "203.0.113.9"
+    # Un client qui falsifie le début de l'en-tête ne choisit pas son adresse : on lit depuis la droite
+    assert client_ip(request("8.8.8.8, 203.0.113.9")) == "203.0.113.9"
+    monkeypatch.setenv("UPB_TRUSTED_PROXY_HOPS", "2")
+    assert client_ip(request("8.8.8.8, 203.0.113.9, 172.16.0.5")) == "203.0.113.9"
+    assert client_ip(request("172.16.0.5")) == "10.0.0.1"  # en-tête trop court : on ne devine pas
+    assert client_ip(request()) == "10.0.0.1"
+    monkeypatch.setenv("UPB_TRUSTED_PROXY_HOPS", "abc")
+    assert client_ip(request("1.2.3.4")) == "10.0.0.1"
+
+
+def test_frontend_targets_a_configurable_api_url(client):
+    config = client.get("/config.js")
+    assert config.status_code == 200 and 'window.UPB_API_URL = "";' in config.text
+    for path in ("/", "/admin.html", "/scanner.html"):
+        page = client.get(path).text
+        assert '<script src="config.js"></script>' in page, path
+        assert "fetch('/api" not in page and 'fetch("/api' not in page, path  # toujours préfixé par API
+        assert "UPB_API_URL" in page, path

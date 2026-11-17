@@ -34,9 +34,11 @@ def errors(*codes: int) -> dict[int, dict[str, Any]]:
     descriptions = {
         400: "Requête invalide (champ manquant, date mal formée…).",
         401: "Jeton administrateur absent ou invalide.",
+        403: "Accès refusé (adresse IP non autorisée, ou action non permise pour cette clé).",
         404: "Ressource introuvable.",
         409: "Conflit (déjà existant).",
         422: "Validation métier échouée.",
+        429: "Quota d'appels par minute dépassé.",
         500: "Erreur serveur ou base de données.",
         503: "Jeton administrateur non configuré côté serveur.",
     }
@@ -293,6 +295,11 @@ class PartnerVerifyBody(BaseModel):
         description="Numéro de candidat attribué par le site d'inscription ; enregistré à la "
         "première inscription (un numéro est généré s'il est absent).",
     )
+    nom: str | None = Field(default=None, description="Facultatif : nom saisi par l'utilisateur, à comparer au dossier.")
+    prenoms: str | None = Field(default=None, description="Facultatif : prénoms saisis, à comparer au dossier.")
+    date_naissance: str | None = Field(
+        default=None, description="Facultatif : date de naissance saisie (`AAAA-MM-JJ` ou `JJ/MM/AAAA`), à comparer au dossier."
+    )
 
 
 class PartnerRegistration(BaseModel):
@@ -302,8 +309,21 @@ class PartnerRegistration(BaseModel):
 
 
 class PartnerVerifyResponse(SuccessResponse):
-    data: StudentRecord
-    inscription: PartnerRegistration
+    verifie: bool = Field(description="`true` : le matricule existe dans la base UPB.")
+    correspondance: dict[str, bool] | None = Field(
+        description="Présent si `nom`, `prenoms` ou `date_naissance` ont été envoyés : pour chacun, "
+        "`true` s'il correspond au dossier (les valeurs du dossier ne sont pas révélées).",
+        examples=[{"nom": True, "date_naissance": False}],
+    )
+    data: dict[str, Any] = Field(
+        description="Données de l'étudiant, limitées aux champs autorisés pour ce partenaire "
+        "(`matricule`, `nom`, `prenoms`, `date_naissance`, `filiere`, `niveau`, et selon l'autorisation "
+        "`sexe`, `email`, `telephone`, `allergies_affection`)."
+    )
+    inscription: PartnerRegistration | None = Field(
+        description="Inscription au concours ; `null` si l'étudiant n'est pas inscrit et que la clé n'a "
+        "pas la permission INSCRIPTION."
+    )
 
 
 class ApproveFailure(BaseModel):
@@ -363,3 +383,109 @@ class ExportLogBody(BaseModel):
     format: Literal["excel", "pdf"]
     cible: Literal["etudiants", "pointage"]
     lignes: int | None = Field(default=None, ge=0, description="Nombre de lignes exportées.")
+
+
+# --------------------------------------------------------------------------- intégrations
+class PartnerKeyInfo(BaseModel):
+    id: int
+    prefixe: str = Field(description="Début de la clé, pour l'identifier (jamais la clé entière).", examples=["upb_AbCdEf12"])
+    libelle: str | None = Field(examples=["Production"])
+    created_at: str
+    cree_par: str | None
+    expire_le: str | None = Field(description="`AAAA-MM-JJ` ; `null` = n'expire pas.")
+    revoquee_le: str | None
+    derniere_utilisation: str | None
+    nb_utilisations: int
+    statut: Literal["ACTIVE", "REVOQUEE", "EXPIREE"]
+
+
+class PartnerStats(BaseModel):
+    appels_total: int
+    appels_24h: int
+    echecs_24h: int
+    inscrits_marques: int = Field(description="Étudiants marqués inscrits par cette intégration.")
+    derniere_activite: str | None
+
+
+class Partner(BaseModel):
+    id: int
+    nom: str = Field(examples=["Site officiel concours"])
+    description: str | None
+    site_url: str | None = Field(examples=["https://inscription.exemple.ci"])
+    contact: str | None
+    permission: Literal["VERIFICATION", "INSCRIPTION"]
+    champs: list[str] = Field(description="Données de l'étudiant que l'intégration reçoit.")
+    ips_autorisees: list[str] = Field(description="Adresses IP / réseaux CIDR autorisés ; vide = toutes.")
+    limite_par_minute: int | None = Field(description="Quota d'appels par minute ; `null` = illimité.")
+    actif: bool
+    created_at: str
+    updated_at: str | None
+    derniere_utilisation: str | None
+    cree_par: str | None
+    cles: list[PartnerKeyInfo]
+    stats: PartnerStats
+
+
+class PartnersListResponse(BaseModel):
+    status: Literal["success"] = "success"
+    data: list[Partner]
+    champs_disponibles: list[str]
+    champs_par_defaut: list[str]
+
+
+class PartnerSecretKey(BaseModel):
+    id: int
+    prefixe: str
+    libelle: str | None
+    expire_le: str | None
+    valeur: str = Field(description="LA CLÉ. Affichée une seule fois : à copier immédiatement.", examples=["upb_xxxxxxxx…"])
+
+
+class PartnerResponse(SuccessResponse):
+    partenaire: Partner
+
+
+class PartnerCreatedResponse(PartnerResponse):
+    cle: PartnerSecretKey
+
+
+class PartnerKeyResponse(PartnerResponse):
+    cle: PartnerSecretKey | None = Field(default=None, description="Présent uniquement après `generer`.")
+
+
+class PartnerCreateBody(BaseModel):
+    nom: str = Field(min_length=3, max_length=80, examples=["Site officiel concours"])
+    description: str | None = Field(default=None, max_length=1000)
+    site_url: str | None = Field(default=None, examples=["https://inscription.exemple.ci"])
+    contact: str | None = Field(default=None, examples=["technique@exemple.ci"])
+    permission: Literal["VERIFICATION", "INSCRIPTION"] = Field(
+        default="VERIFICATION", description="VERIFICATION : lecture seule. INSCRIPTION : marque aussi l'étudiant inscrit.")
+    champs: list[str] | None = Field(default=None, description="Données autorisées ; par défaut l'identité seule.")
+    ips_autorisees: list[str] | None = Field(default=None, examples=[["203.0.113.10", "198.51.100.0/24"]])
+    limite_par_minute: int | None = Field(default=None, ge=1, le=100000)
+    libelle_cle: str | None = Field(default=None, max_length=80, examples=["Production"])
+    expire_le: str | None = Field(default=None, description="Expiration de la première clé (`AAAA-MM-JJ`).")
+
+
+class PartnerUpdateBody(BaseModel):
+    id: int = Field(ge=1)
+    description: str | None = None
+    site_url: str | None = None
+    contact: str | None = None
+    permission: Literal["VERIFICATION", "INSCRIPTION"] | None = None
+    champs: list[str] | None = None
+    ips_autorisees: list[str] | None = None
+    limite_par_minute: int | None = None
+    actif: bool | None = None
+
+
+class PartnerKeyBody(BaseModel):
+    id: int = Field(ge=1, description="Identifiant de l'intégration.")
+    action: Literal["generer", "revoquer"]
+    cle_id: int | None = Field(default=None, ge=1, description="Clé à révoquer (action `revoquer`).")
+    libelle: str | None = Field(default=None, max_length=80, description="Libellé de la nouvelle clé.")
+    expire_le: str | None = Field(default=None, description="Expiration de la nouvelle clé (`AAAA-MM-JJ`).")
+
+
+class PartnerIdBody(BaseModel):
+    id: int = Field(ge=1)

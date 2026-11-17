@@ -46,6 +46,10 @@ ROUTE_EVENTS: dict[tuple[str, str], tuple[str, str, str, bool]] = {
     ("POST", "/api/import_etudiants"): ("IMPORT_ETUDIANTS_CSV", "IMPORT", "ADMIN", False),
     ("POST", "/api/pointage"): ("POINTAGE_ENREGISTRE", "POINTAGE", "ADMIN", False),
     ("POST", "/api/admin_export"): ("EXPORT_DONNEES", "EXPORT", "ADMIN", False),
+    ("POST", "/api/admin_partenaires"): ("PARTENAIRE_CREE", "PARTENAIRE", "ADMIN", False),
+    ("POST", "/api/admin_partenaires/modifier"): ("PARTENAIRE_MODIFIE", "PARTENAIRE", "ADMIN", False),
+    ("POST", "/api/admin_partenaires/cles"): ("PARTENAIRE_CLE_GENEREE", "PARTENAIRE", "ADMIN", False),
+    ("POST", "/api/admin_partenaires/supprimer"): ("PARTENAIRE_SUPPRIME", "PARTENAIRE", "ADMIN", False),
     ("GET", "/api/admin_journal/export"): ("JOURNAL_EXPORTE", "JOURNAL", "ADMIN", False),
     ("GET", "/docs"): ("DOCUMENTATION_CONSULTEE", "DOCUMENTATION", "DOCUMENTATION", False),
     ("GET", "/redoc"): ("DOCUMENTATION_CONSULTEE", "DOCUMENTATION", "DOCUMENTATION", False),
@@ -54,12 +58,14 @@ ROUTE_EVENTS: dict[tuple[str, str], tuple[str, str, str, bool]] = {
 
 # Libellés lisibles (utilisés par l'interface et l'export)
 CATEGORIES = [
-    "AUTH", "ETUDIANT", "DEMANDE", "INSCRIPTION", "POINTAGE", "IMPORT", "EXPORT", "JOURNAL", "DOCUMENTATION",
+    "AUTH", "ETUDIANT", "DEMANDE", "INSCRIPTION", "PARTENAIRE", "POINTAGE", "IMPORT", "EXPORT", "JOURNAL",
+    "DOCUMENTATION",
 ]
 ACTIONS = sorted(
     {a for a, *_ in ROUTE_EVENTS.values()}
     | {
-        "ACCES_REFUSE",
+        "ACCES_REFUSE", "VERIFICATION_PARTENAIRE",
+        "PARTENAIRE_ACTIVE", "PARTENAIRE_DESACTIVE", "PARTENAIRE_CLE_REVOQUEE",
         "DEMANDE_CORRECTION_APPROUVEE", "DEMANDE_CORRECTION_REFUSEE",
         "DEMANDE_CREATION_APPROUVEE", "DEMANDE_CREATION_REFUSEE",
     }
@@ -77,7 +83,7 @@ def begin(ip: str | None, user_agent: str | None, method: str, path: str) -> con
         {
             "ip": ip, "user_agent": user_agent, "method": method, "path": path,
             "actor_type": None, "actor": None,
-            "action": None, "target_type": None, "target": None, "message": None, "details": {},
+            "action": None, "category": None, "target_type": None, "target": None, "message": None, "details": {},
         }
     )
 
@@ -95,6 +101,7 @@ def set_actor(actor_type: str, actor: str | None) -> None:
 def annotate(
     *,
     action: str | None = None,
+    category: str | None = None,
     target_type: str | None = None,
     target: str | None = None,
     message: str | None = None,
@@ -106,6 +113,8 @@ def annotate(
         return
     if action:
         ctx["action"] = action
+    if category:
+        ctx["category"] = category
     if target_type:
         ctx["target_type"] = target_type
     if target:
@@ -190,7 +199,7 @@ def finish_request(status_code: int) -> None:
         return
     log(
         ctx["action"] or action,
-        category,
+        ctx["category"] or category,
         status=SUCCES if ok else ECHEC,
         actor_type=ctx["actor_type"] or default_actor,
         target_type=ctx["target_type"],

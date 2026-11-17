@@ -5,6 +5,7 @@ Aucune dépendance externe : bibliothèque standard uniquement.
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import secrets
@@ -140,3 +141,58 @@ class LoginThrottle:
 
 
 login_throttle = LoginThrottle()
+
+
+class RateLimiter:
+    """Quota d'appels par minute (fenêtre glissante, en mémoire, par processus)."""
+
+    def __init__(self, window: int = 60):
+        self.window = window
+        self._hits: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def hit(self, key: str, limit: int | None) -> int:
+        """Enregistre un appel. Retourne 0 s'il est autorisé, sinon les secondes à attendre."""
+        if not limit:
+            return 0
+        now = time.time()
+        with self._lock:
+            recent = [t for t in self._hits.get(key, []) if now - t < self.window]
+            if len(recent) >= limit:
+                self._hits[key] = recent
+                return int(self.window - (now - recent[0])) + 1
+            recent.append(now)
+            self._hits[key] = recent
+            return 0
+
+    def reset(self, key: str | None = None) -> None:
+        with self._lock:
+            if key is None:
+                self._hits.clear()
+            else:
+                self._hits.pop(key, None)
+
+
+partner_rate = RateLimiter()
+
+
+def parse_network(entry: str):
+    """Adresse IP ou réseau CIDR -> objet réseau (ValueError si invalide)."""
+    return ipaddress.ip_network(entry.strip(), strict=False)
+
+
+def ip_allowed(ip: str | None, allowed: list[str]) -> bool:
+    """Vrai si la liste est vide (aucune restriction) ou si l'IP appartient à l'un des réseaux."""
+    if not allowed:
+        return True
+    try:
+        address = ipaddress.ip_address((ip or "").strip())
+    except ValueError:
+        return False
+    for entry in allowed:
+        try:
+            if address in parse_network(entry):
+                return True
+        except ValueError:
+            continue
+    return False

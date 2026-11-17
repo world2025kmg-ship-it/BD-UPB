@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Concours Génie UPB - Mon dossier</title>
+    <title>Incubateur UPB - Mon dossier</title>
     <link rel="stylesheet" href="genie.css">
 </head>
 
@@ -24,9 +24,9 @@
 
 
         <section class="hero">
-            <h2 class="sticker" data-t="GÉNIE UPB">GÉNIE UPB</h2>
+            <h2 class="sticker" data-t="INCUBATEUR UPB">INCUBATEUR UPB</h2>
             <p class="edition">Édition 2026</p>
-            <p class="lead">Vérifiez et mettez à jour vos informations de candidat Génie UPB.</p>
+            <p class="lead">Vérifiez et mettez à jour vos informations étudiants UPB.</p>
             <div class="bubble" role="status" aria-live="polite"><span id="say"></span></div>
             <div id="bot-slot" style="--bs:clamp(190px,26vw,300px)"></div>
         </section>
@@ -37,10 +37,10 @@
                 <div class="steps">
                     <div class="step on" id="s1"><span class="dot">1</span>&nbsp;<span class="t">Vérifier</span></div>
                     <span class="bar" id="b1"><i></i></span>
-                    <div class="step" id="s2"><span class="dot">2</span>&nbsp;<span class="t">Candidat</span></div>
+                    <div class="step" id="s2"><span class="dot">2</span>&nbsp;<span class="t">Étudiant</span></div>
                 </div>
 
-                <h2>Portail candidat</h2>
+                <h2>Portail étudiant</h2>
                 <p class="sub">Saisissez votre matricule pour rechercher votre dossier étudiant.</p>
 
                 <label for="matricule">Numéro de matricule</label>
@@ -101,10 +101,12 @@
         </div>
     </main>
 
-    <footer class="foot">&copy; 2026 - Université Polytechnique de Bingerville (UPB)</footer>
+    <footer class="foot">&copy; 2026 - Incubateur UPB</footer>
 
+    <script src="config.js"></script>
     <script src="genie-fx.js"></script>
     <script>
+        const API = (window.UPB_API_URL || '').replace(/\/+$/, '');
         let matriculeActuel = "";
         let sexeChoisi = "";
         let modeCreation = false; // true : matricule inconnu, le candidat renseigne son dossier
@@ -196,7 +198,7 @@
             busy(true); mood('think'); say("Je parcours la liste des étudiants...");
 
             try {
-                const response = await fetch('/api/verifier', {
+                const response = await fetch(API + '/api/verifier', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ matricule: matriculeActuel })
@@ -287,7 +289,7 @@
             charge(btn, true, 'Envoi en cours...');
             busy(true); mood('think');
             try {
-                const response = await fetch(modeCreation ? '/api/demander_creation' : '/api/demander_modification', {
+                const response = await fetch(API + (modeCreation ? '/api/demander_creation' : '/api/demander_modification'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

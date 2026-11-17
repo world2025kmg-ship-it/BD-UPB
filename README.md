@@ -38,7 +38,8 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env      # puis renseigner DATABASE_URL et UPB_SECRET_KEY
 python -m scripts.migrate        # crée/complète le schéma sur Neon (idempotent)
 python -m scripts.create_admin admin   # crée un administrateur (mot de passe demandé au clavier)
-python -m scripts.create_partner "Site officiel concours"   # crée la clé d'API du site d'inscription (affichée une fois)
+# Les intégrations (sites externes) et leurs clés d'API se gèrent dans l'onglet « Intégrations » de la page admin.
+# Dépannage sans interface : python -m scripts.create_partner "Nom du site"
 uvicorn app.main:app --reload
 ```
 
@@ -59,6 +60,10 @@ L'application écoute sur <http://127.0.0.1:8000> :
 - **Accès protégé** (HTTP Basic, nom d'utilisateur libre) : mot de passe = `UPB_DOCS_PASSWORD` (à communiquer aux intégrateurs que l'administrateur autorise) ou l'identifiant et le mot de passe d'un administrateur. Le mot de passe de la doc ne donne aucun accès aux routes d'administration.
 - Régénérer la copie versionnée : `python -m scripts.export_openapi` (depuis `backend/`).
 - **Guide pour les sites externes** (vérification d'identité d'un étudiant) : [docs/GUIDE_INTEGRATION.md](docs/GUIDE_INTEGRATION.md).
+
+## Déploiement
+
+Netlify (frontend) + Render (backend) + Neon + UptimeRobot, sans fichier de configuration d'hébergement : voir [docs/GUIDE_DEPLOIEMENT.md](docs/GUIDE_DEPLOIEMENT.md). L'adresse de l'API côté pages se règle dans `frontend/config.js` ; `GET /api/sante` sert à la supervision.
 
 ## Configuration (`backend/.env`, non versionné)
 
@@ -89,7 +94,12 @@ invalide ou expiré ; `503` si `UPB_SECRET_KEY` n'est pas configurée.
 |---|---|---|
 | `POST /api/verifier` | — | Retrouver un dossier par `matricule` |
 | `POST /api/demander_modification` | — | Proposer une correction à valider (`409` si déjà en attente) |
-| `POST /api/partenaire/verifier` | clé d'API | **Site officiel d'inscription** : vérifie l'étudiant et le marque inscrit au concours (idempotent) |
+| `POST /api/partenaire/verifier` | clé d'API | **Intégrations externes** : le matricule suffit ; renvoie `verifie` et les seules données autorisées. Selon la permission de la clé, marque aussi l'étudiant inscrit au concours (idempotent) |
+| `GET /api/admin_partenaires` | admin | Lister les intégrations (autorisations, clés sans leur valeur, activité) |
+| `POST /api/admin_partenaires` | admin | Créer une intégration et générer sa première clé (affichée une seule fois) |
+| `POST /api/admin_partenaires/modifier` | admin | Modifier permission, données transmises, IP autorisées, quota ; activer / désactiver |
+| `POST /api/admin_partenaires/cles` | admin | Générer une nouvelle clé (rotation) ou révoquer une clé |
+| `POST /api/admin_partenaires/supprimer` | admin | Supprimer une intégration et ses clés |
 | `POST /api/demander_creation` | — | Matricule inconnu : soumettre son dossier, à valider par un admin |
 | `POST /api/admin_login` | — | Connexion `{"identifiant", "password"}` → jeton de session (5 échecs = blocage 15 min) |
 | `POST /api/admin_auth_check` | admin | Vérifier la session |
@@ -127,6 +137,25 @@ curl.exe -X POST http://127.0.0.1:8000/api/partenaire/verifier -H "X-API-Key: CL
 curl.exe -X POST http://127.0.0.1:8000/api/admin_login -H "Content-Type: application/json" -d '{\"identifiant\":\"admin\",\"password\":\"VOTRE_MOT_DE_PASSE\"}'
 curl.exe "http://127.0.0.1:8000/api/get_etudiants?q=KOUA" -H "Authorization: Bearer JETON_DE_SESSION"
 ```
+
+## Intégrations (sites externes)
+
+Tout se gère depuis l'onglet **Intégrations** de la page admin : créer une intégration, générer
+ses clés d'API, choisir ce qu'elle peut faire et la désactiver ou la supprimer.
+
+| Réglage | Effet |
+|---|---|
+| Permission | **Vérification seule** (lecture) ou **Vérification et inscription** (marque aussi l'étudiant inscrit au concours) |
+| Données transmises | Champs de l'étudiant reçus par le site ; **le matricule seul suffit** (accès limité au matricule : le site sait seulement si l'étudiant existe) |
+| Adresses IP autorisées | Adresses ou réseaux CIDR ; vide = toutes |
+| Quota | Appels par minute (`429` au-delà) |
+| Clés | Plusieurs par intégration (rotation sans coupure), expiration facultative, révocation immédiate ; la valeur n'est affichée qu'une fois, seule son empreinte SHA-256 est stockée |
+| Activation | Désactiver coupe toutes les clés à l'instant (réversible) ; supprimer est définitif |
+
+Un site vérifie un étudiant avec le seul matricule (`verifie: true` / `404`). Il peut aussi envoyer
+`nom`, `prenoms`, `date_naissance` pour obtenir une `correspondance` champ par champ sans recevoir
+ces données. Chaque fiche affiche l'activité (appels, échecs, inscrits marqués) et renvoie vers le
+journal filtré. Détails pour les développeurs externes : [docs/GUIDE_INTEGRATION.md](docs/GUIDE_INTEGRATION.md).
 
 ## Journal d'activité
 

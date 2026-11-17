@@ -22,6 +22,8 @@ def open_pool() -> None:
         conninfo=config.database_url(),
         min_size=1,
         max_size=5,
+        max_idle=60,  # recycle les connexions inactives avant que Neon / le pooler ne les coupe
+        max_lifetime=900,
         open=False,
         check=ConnectionPool.check_connection,  # Neon coupe les connexions inactives
         kwargs={
